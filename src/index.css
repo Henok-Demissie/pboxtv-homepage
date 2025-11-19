@@ -1,0 +1,440 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Prevent horizontal scrolling */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Fix overlapping sections */
+.movie-section, .series-section {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 2rem;
+}
+
+.movie-section:last-child, .series-section:last-child {
+  margin-bottom: 0;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: sans-serif;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #000000;
+}
+
+/* Swiper container */
+.swiper-container {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Mask effect */
+.mask {
+  mask-image: linear-gradient(to top, transparent, #121212);
+}
+
+/* Modal transitions */
+.modal {
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+/* Video player */
+#player {
+  transition: transform 0.3s ease;
+}
+
+/* Hide scrollbars */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Portrait mode - rotate video */
+@media (orientation: portrait) {
+  #player {
+    transform: rotate(90deg) scale(1.75);
+    transform-origin: center center;
+  }
+}
+
+/* Landscape mode - normal video */
+@media (orientation: landscape) {
+  #player {
+    transform: none;
+  }
+}
+
+/* Custom scrollbar styling */
+::-webkit-scrollbar {
+  width: 1px;
+  height: 1px;
+  background-color: transparent;
+}
+
+::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: transparent;
+}
+
+/* Loading animations */
+.loader {
+  width: 20px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #e50914;
+  box-shadow: 0 0 0 0 #e50914;
+  animation: l2 1.5s infinite linear;
+  position: relative;
+}
+
+.loader:before,
+.loader:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 0 #e50914;
+  animation: inherit;
+  animation-delay: -0.5s;
+}
+
+.loader:after {
+  animation-delay: -1s;
+}
+
+@keyframes l2 {
+  100% {
+    box-shadow: 0 0 0 40px #e509142f;
+  }
+}
+
+/* Search loading animation */
+.loader-search {
+  width: 10px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #e50914;
+  box-shadow: 0 0 0 0 #e50914;
+  animation: l3 1.5s infinite linear;
+  position: relative;
+}
+
+.loader-search:before,
+.loader-search:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 0 #e50914;
+  animation: inherit;
+  animation-delay: -0.5s;
+}
+
+.loader-search:after {
+  animation-delay: -1s;
+}
+
+@keyframes l3 {
+  100% {
+    box-shadow: 0 0 0 30px #e509142f;
+  }
+}
+
+/* Episodes loading animation */
+.loader-episode {
+  width: 40px;
+  aspect-ratio: 1;
+  --c: linear-gradient(#e50914 0 0);
+  --r1: radial-gradient(farthest-side at bottom, #e50914 93%, #e50914);
+  --r2: radial-gradient(farthest-side at top, #e50914 93%, #e50914);
+  background: var(--c), var(--r1), var(--r2), var(--c), var(--r1), var(--r2),
+    var(--c), var(--r1), var(--r2);
+  background-repeat: no-repeat;
+  animation: l4 1s infinite alternate;
+}
+
+@keyframes l4 {
+  0%, 25% {
+    background-size: 8px 0, 8px 4px, 8px 4px, 8px 0, 8px 4px, 8px 4px, 8px 0,
+      8px 4px, 8px 4px;
+    background-position: 0 50%, 0 calc(50% - 2px), 0 calc(50% + 2px), 50% 50%,
+      50% calc(50% - 2px), 50% calc(50% + 2px), 100% 50%, 100% calc(50% - 2px),
+      100% calc(50% + 2px);
+  }
+  50% {
+    background-size: 8px 100%, 8px 4px, 8px 4px, 8px 0, 8px 4px, 8px 4px, 8px 0,
+      8px 4px, 8px 4px;
+    background-position: 0 50%, 0 calc(0% - 2px), 0 calc(100% + 2px), 50% 50%,
+      50% calc(50% - 2px), 50% calc(50% + 2px), 100% 50%, 100% calc(50% - 2px),
+      100% calc(50% + 2px);
+  }
+  75% {
+    background-size: 8px 100%, 8px 4px, 8px 4px, 8px 100%, 8px 4px, 8px 4px,
+      8px 0, 8px 4px, 8px 4px;
+    background-position: 0 50%, 0 calc(0% - 2px), 0 calc(100% + 2px), 50% 50%,
+      50% calc(0% - 2px), 50% calc(100% + 2px), 100% 50%, 100% calc(50% - 2px),
+      100% calc(50% + 2px);
+  }
+  95%, 100% {
+    background-size: 8px 100%, 8px 4px, 8px 4px, 8px 100%, 8px 4px, 8px 4px,
+      8px 100%, 8px 4px, 8px 4px;
+    background-position: 0 50%, 0 calc(0% - 2px), 0 calc(100% + 2px), 50% 50%,
+      50% calc(0% - 2px), 50% calc(100% + 2px), 100% 50%, 100% calc(0% - 2px),
+      100% calc(100% + 2px);
+  }
+}
+/* Custom Video Player Styles */
+.slider {
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+}
+
+.slider::-webkit-slider-track {
+  background: rgba(255, 255, 255, 0.2);
+  height: 4px;
+  border-radius: 2px;
+}
+
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  height: 12px;
+  width: 12px;
+  border-radius: 50%;
+  background: #dc2626;
+  cursor: pointer;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+
+.slider::-webkit-slider-thumb:hover {
+  background: #ef4444;
+  transform: scale(1.2);
+}
+
+.slider::-moz-range-track {
+  background: rgba(255, 255, 255, 0.2);
+  height: 4px;
+  border-radius: 2px;
+  border: none;
+}
+
+.slider::-moz-range-thumb {
+  height: 12px;
+  width: 12px;
+  border-radius: 50%;
+  background: #dc2626;
+  cursor: pointer;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+
+.slider::-moz-range-thumb:hover {
+  background: #ef4444;
+  transform: scale(1.2);
+}
+
+/* Video container responsiveness */
+@media (max-width: 768px) {
+  .video-player-controls {
+    padding: 8px;
+  }
+  
+  .video-player-controls button {
+    padding: 8px;
+  }
+  
+  .video-player-controls .slider {
+    width: 60px;
+  }
+}
+
+/* Fullscreen styles */
+video::-webkit-media-controls {
+  display: none !important;
+}
+
+video::-moz-media-controls {
+  display: none !important;
+}
+
+/* Smooth transitions for all interactive elements */
+.video-controls-button {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.video-controls-button:hover {
+  transform: scale(1.05);
+}
+
+/* Custom scrollbar for settings dropdown */
+.settings-dropdown::-webkit-scrollbar {
+  width: 6px;
+}
+
+.settings-dropdown::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.settings-dropdown::-webkit-scrollbar-thumb {
+  background: #dc2626;
+  border-radius: 3px;
+}
+
+.settings-dropdown::-webkit-scrollbar-thumb:hover {
+  background: #ef4444;
+}
+
+/* Loading animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.loading-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Progress bar hover effects */
+.progress-bar-container:hover .progress-thumb {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+.progress-thumb {
+  opacity: 0;
+  transform: translateY(-50%) scale(0.8);
+  transition: all 0.2s ease;
+}
+
+/* Backdrop blur for better text readability */
+.controls-backdrop {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Mobile-specific styles */
+@media screen and (max-width: 640px) {
+  .mobile-controls {
+    padding: 8px 12px;
+  }
+  
+  .mobile-controls button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 12px;
+  }
+  
+  .mobile-time-display {
+    font-size: 12px;
+  }
+
+  /* Ensure video takes full screen on mobile */
+  video {
+    width: 100vw !important;
+    height: 100vh !important;
+    object-fit: contain;
+  }
+
+  /* Mobile volume slider */
+  .mobile-volume-slider {
+    width: 60px;
+  }
+
+  /* Touch-friendly progress bar */
+  .progress-bar-mobile {
+    height: 8px !important;
+    margin: 8px 0;
+  }
+
+  .progress-bar-mobile .progress-thumb {
+    width: 16px;
+    height: 16px;
+    opacity: 1;
+  }
+}
+
+/* Landscape mode optimization for mobile */
+@media screen and (max-width: 896px) and (orientation: landscape) {
+  .landscape-controls {
+    padding: 4px 12px;
+  }
+  
+  .landscape-title {
+    font-size: 14px;
+  }
+
+  /* Ensure fullscreen in landscape */
+  .video-player-container {
+    width: 100vw !important;
+    height: 100vh !important;
+  }
+
+  /* Compact controls for landscape */
+  .landscape-controls button {
+    padding: 8px;
+  }
+
+  .landscape-controls .space-x-4 > * + * {
+    margin-left: 8px;
+  }
+}
+
+/* Tablet specific adjustments */
+@media screen and (min-width: 641px) and (max-width: 1024px) {
+  .tablet-controls {
+    padding: 12px 16px;
+  }
+
+  .tablet-controls button {
+    min-width: 48px;
+    min-height: 48px;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .slider::-webkit-slider-thumb,
+  .slider::-moz-range-thumb {
+    border: 3px solid #ffffff;
+    box-shadow: 0 0 0 1px #000000;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .video-controls-button,
+  .slider::-webkit-slider-thumb,
+  .slider::-moz-range-thumb {
+    transition: none;
+  }
+}
