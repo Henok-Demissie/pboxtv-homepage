@@ -407,7 +407,7 @@ export default function Footer() {
 
 
           {/* Quick Links and Content - Same Line */}
-          <div className="lg:col-span-2 flex flex-col md:flex-row gap-8 lg:gap-12">
+          <div className="lg:col-span-2 flex flex-row gap-4 md:gap-8 lg:gap-12">
             {/* Quick Links - Left Side */}
             <div className="flex-1">
 

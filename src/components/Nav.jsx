@@ -119,8 +119,8 @@ export default function Nav() {
   };
 
   // Remove single history item
-  const removeHistoryItem = (index) => {
-    const newHistory = searchHistory.filter((_, i) => i !== index);
+  const removeHistoryItem = (termToRemove) => {
+    const newHistory = searchHistory.filter((term) => term !== termToRemove);
     setSearchHistory(newHistory);
     localStorage.setItem('searchHistory', JSON.stringify(newHistory));
   };
@@ -317,6 +317,22 @@ export default function Nav() {
     saveToStorage('recentlyViewed', updatedRecentlyViewed);
     setRecentlyViewed(updatedRecentlyViewed);
     // Dispatch event for cross-component updates
+    window.dispatchEvent(new CustomEvent('recentlyViewedUpdated'));
+  };
+
+  // Handle remove favorite
+  const handleRemoveFavorite = (tmdbId) => {
+    const updatedFavorites = favorites.filter(f => f.tmdb_id !== tmdbId);
+    saveToStorage('favorites', updatedFavorites);
+    setFavorites(updatedFavorites);
+    window.dispatchEvent(new CustomEvent('favoritesUpdated'));
+  };
+
+  // Handle remove recently viewed
+  const handleRemoveRecentlyViewed = (tmdbId) => {
+    const updatedRecentlyViewed = recentlyViewed.filter(i => i.tmdb_id !== tmdbId);
+    saveToStorage('recentlyViewed', updatedRecentlyViewed);
+    setRecentlyViewed(updatedRecentlyViewed);
     window.dispatchEvent(new CustomEvent('recentlyViewedUpdated'));
   };
 
@@ -1184,23 +1200,31 @@ export default function Nav() {
 
                 {searchHistory.length > 0 ? (
                   <div className="space-y-1 max-h-60 overflow-y-auto">
-                    {searchHistory.map((term, index) => (
-                      <div key={index} className="flex items-center gap-3 group">
-                        <button
-                          onClick={() => handleHistorySearch(term)}
-                          className="flex-1 text-left px-3 py-2 rounded-xl text-gray-300 hover:bg-gray-800/50 hover:text-white transition-all duration-300 flex items-center gap-3"
+                    <AnimatePresence mode="popLayout">
+                      {searchHistory.map((term) => (
+                        <motion.div
+                          key={term}
+                          initial={{ opacity: 1, height: "auto", x: 0 }}
+                          exit={{ opacity: 0, height: 0, x: -20 }}
+                          transition={{ duration: 0.3, ease: "easeInOut" }}
+                          className="flex items-center gap-3 group overflow-hidden"
                         >
-                          <FiSearch className="text-gray-500 group-hover:text-red-400 transition-colors duration-300" />
-                          <span className="flex-1 truncate">{term}</span>
-                        </button>
-                        <button
-                          onClick={() => removeHistoryItem(index)}
-                          className="p-1 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-300"
-                        >
-                          <VscClose className="text-sm" />
-                        </button>
-                      </div>
-                    ))}
+                          <button
+                            onClick={() => handleHistorySearch(term)}
+                            className="flex-1 text-left px-3 py-2 rounded-xl text-gray-300 hover:bg-gray-800/50 hover:text-white transition-all duration-300 flex items-center gap-3"
+                          >
+                            <FiSearch className="text-gray-500 group-hover:text-red-400 transition-colors duration-300" />
+                            <span className="flex-1 truncate">{term}</span>
+                          </button>
+                          <button
+                            onClick={() => removeHistoryItem(term)}
+                            className="p-1 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-300"
+                          >
+                            <VscClose className="text-sm" />
+                          </button>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
                   </div>
                 ) : (
                   <div className="text-center py-8 text-gray-500">
@@ -1297,11 +1321,16 @@ export default function Nav() {
                                   <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-gray-900/80 to-black border border-gray-800 hover:border-red-500/50 transition-all duration-300">
                                     <Link
                                       to={fav.media_type === 'movie' ? `/mov/${fav.tmdb_id}` : `/ser/${fav.tmdb_id}`}
-                                      onClick={() => {
+                                      onClick={(e) => {
+                                        // Don't navigate if clicking on the remove button area
+                                        if (e.target.closest('button[title="Remove from favorites"]')) {
+                                          e.preventDefault();
+                                          return;
+                                        }
                                         setMobileMenuOpen(false);
                                         handleFavoriteClick(fav);
                                       }}
-                                      className="flex items-center gap-2 p-1.5"
+                                      className="flex items-center gap-2 p-1.5 pr-8"
                                     >
                                       <div className="relative w-10 h-14 rounded overflow-hidden flex-shrink-0">
                                         <LazyLoadImage
@@ -1321,15 +1350,30 @@ export default function Nav() {
                                       </div>
                                     </Link>
                                     <button
+                                      type="button"
                                       onClick={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
                                         handleRemoveFavorite(fav.tmdb_id);
                                       }}
-                                      className="absolute top-1 right-1 p-1 bg-black/90 hover:bg-red-500 rounded-full transition-all duration-300 hover:scale-110 z-10 flex items-center justify-center"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                      }}
+                                      onTouchStart={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleRemoveFavorite(fav.tmdb_id);
+                                      }}
+                                      onTouchEnd={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                      }}
+                                      className="absolute top-1 right-1 p-1.5 bg-black/90 hover:bg-red-500 active:bg-red-500 rounded-full transition-all duration-300 hover:scale-110 active:scale-95 z-30 flex items-center justify-center pointer-events-auto touch-none"
                                       title="Remove from favorites"
+                                      aria-label="Remove from favorites"
                                     >
-                                      <IoClose className="text-white text-xs" />
+                                      <IoClose className="text-white text-xs pointer-events-none" />
                                     </button>
                                   </div>
                                 </motion.div>
@@ -1372,11 +1416,16 @@ export default function Nav() {
                                   <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-gray-900/80 to-black border border-gray-800 hover:border-red-500/50 transition-all duration-300">
                                     <Link
                                       to={item.media_type === 'movie' ? `/mov/${item.tmdb_id}` : `/ser/${item.tmdb_id}`}
-                                      onClick={() => {
+                                      onClick={(e) => {
+                                        // Don't navigate if clicking on the remove button area
+                                        if (e.target.closest('button[title="Remove from recently viewed"]')) {
+                                          e.preventDefault();
+                                          return;
+                                        }
                                         setMobileMenuOpen(false);
                                         handleRecentlyViewedClick(item);
                                       }}
-                                      className="flex items-center gap-2 p-1.5"
+                                      className="flex items-center gap-2 p-1.5 pr-8"
                                     >
                                       <div className="relative w-10 h-14 rounded overflow-hidden flex-shrink-0">
                                         <LazyLoadImage
@@ -1396,15 +1445,30 @@ export default function Nav() {
                                       </div>
                                     </Link>
                                     <button
+                                      type="button"
                                       onClick={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
                                         handleRemoveRecentlyViewed(item.tmdb_id);
                                       }}
-                                      className="absolute top-1 right-1 p-1 bg-black/90 hover:bg-red-500 rounded-full transition-all duration-300 hover:scale-110 z-10 flex items-center justify-center"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                      }}
+                                      onTouchStart={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleRemoveRecentlyViewed(item.tmdb_id);
+                                      }}
+                                      onTouchEnd={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                      }}
+                                      className="absolute top-1 right-1 p-1.5 bg-black/90 hover:bg-red-500 active:bg-red-500 rounded-full transition-all duration-300 hover:scale-110 active:scale-95 z-30 flex items-center justify-center pointer-events-auto touch-none"
                                       title="Remove from recently viewed"
+                                      aria-label="Remove from recently viewed"
                                     >
-                                      <IoClose className="text-white text-xs" />
+                                      <IoClose className="text-white text-xs pointer-events-none" />
                                     </button>
                                   </div>
                                 </motion.div>
@@ -1817,32 +1881,40 @@ export default function Nav() {
 
                   {searchHistory.length > 0 ? (
                     <div className="space-y-2 overflow-y-auto flex-1">
-                      {searchHistory.map((term, index) => (
-                        <div key={index} className="flex items-center gap-3 group">
-                          <button
-                            onClick={() => handleHistorySearch(term)}
-                            className="flex-1 text-left p-4 rounded-2xl bg-gray-900/50 hover:bg-gray-800/50 transition-all duration-300 flex items-center gap-4 border border-gray-800/30"
+                      <AnimatePresence mode="popLayout">
+                        {searchHistory.map((term) => (
+                          <motion.div
+                            key={term}
+                            initial={{ opacity: 1, height: "auto", x: 0 }}
+                            exit={{ opacity: 0, height: 0, x: -20 }}
+                            transition={{ duration: 0.3, ease: "easeInOut" }}
+                            className="flex items-center gap-3 group overflow-hidden"
                           >
-                            <div className="p-2 rounded-xl bg-gray-800/50 group-hover:bg-red-500/20 transition-all duration-300">
-                              <FiSearch className="text-gray-400 group-hover:text-red-400 transition-colors duration-300" />
-                            </div>
-                            <span className="flex-1 text-gray-300 group-hover:text-white transition-colors duration-300 truncate">
-                              {term}
-                            </span>
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                              </svg>
-                            </div>
-                          </button>
-                          <button
-                            onClick={() => removeHistoryItem(index)}
-                            className="p-2 rounded-xl text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-300"
-                          >
-                            <VscClose className="text-lg" />
-                          </button>
-                        </div>
-                      ))}
+                            <button
+                              onClick={() => handleHistorySearch(term)}
+                              className="flex-1 text-left p-4 rounded-2xl bg-gray-900/50 hover:bg-gray-800/50 transition-all duration-300 flex items-center gap-4 border border-gray-800/30"
+                            >
+                              <div className="p-2 rounded-xl bg-gray-800/50 group-hover:bg-red-500/20 transition-all duration-300">
+                                <FiSearch className="text-gray-400 group-hover:text-red-400 transition-colors duration-300" />
+                              </div>
+                              <span className="flex-1 text-gray-300 group-hover:text-white transition-colors duration-300 truncate">
+                                {term}
+                              </span>
+                              <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => removeHistoryItem(term)}
+                              className="p-2 rounded-xl text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-300"
+                            >
+                              <VscClose className="text-lg" />
+                            </button>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
                     </div>
                   ) : (
                     <div className="text-center py-12 text-gray-500">
@@ -1863,73 +1935,63 @@ export default function Nav() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="fixed bottom-0 left-0 right-0 z-[9999] bg-black/95 backdrop-blur-xl border-t border-gray-800/50 md:hidden"
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        className="fixed bottom-0 left-0 right-0 z-[9999] bg-black/90 backdrop-blur-md border-t border-gray-800/30 md:hidden shadow-[0_-4px_20px_rgba(0,0,0,0.5)]"
       >
-        <nav className="flex items-center justify-between px-4 py-3 gap-3">
-          {/* Left Side - Quick Links */}
-          <div className="flex items-center gap-1 flex-1 overflow-x-auto scrollbar-hide min-w-0">
+        <nav className="flex items-center justify-center px-3 py-3.5">
+          {/* Quick Links - Centered */}
+          <div className="flex items-center justify-center gap-1 overflow-x-auto scrollbar-hide min-w-0 w-full max-w-md">
             {mobileNavItems.map((navItem, index) => (
               navItem.external ? (
-                <a
+                <motion.a
                   key={index}
                   href={navItem.path}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all duration-300 whitespace-nowrap flex-shrink-0 text-gray-400 hover:text-red-400 hover:bg-red-500/10"
+                  whileTap={{ scale: 0.95 }}
+                  className="flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all duration-300 whitespace-nowrap flex-shrink-0 text-gray-400 hover:text-white hover:bg-white/5 active:scale-95"
                 >
-                  <navItem.icon className="text-base flex-shrink-0" />
-                  <span className="text-xs font-medium">{navItem.name}</span>
-                </a>
+                  <navItem.icon className="text-lg flex-shrink-0 transition-transform duration-300" />
+                  <span className="text-[10px] font-medium leading-tight">{navItem.name}</span>
+                </motion.a>
               ) : (
-                <Link
+                <motion.div
                   key={index}
-                  to={navItem.path}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all duration-300 whitespace-nowrap flex-shrink-0 ${
-                    navStatus === navItem.name
-                      ? "text-red-400 bg-red-500/10"
-                      : "text-gray-400 hover:text-white hover:bg-white/5"
-                  }`}
-                  onClick={() => setNavStatus(navItem.name)}
+                  className="flex-1 flex justify-center"
+                  whileTap={{ scale: 0.95 }}
                 >
-                  <navItem.icon className="text-base flex-shrink-0" />
-                  <span className="text-xs font-medium">{navItem.name}</span>
-                </Link>
+                  <Link
+                    to={navItem.path}
+                    className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all duration-300 whitespace-nowrap relative ${
+                      navStatus === navItem.name
+                        ? ""
+                        : "text-gray-400 hover:bg-white/5"
+                    }`}
+                    onClick={() => setNavStatus(navItem.name)}
+                  >
+                    <navItem.icon className={`text-lg flex-shrink-0 transition-all duration-300 ${
+                      navStatus === navItem.name 
+                        ? "scale-110 text-red-400" 
+                        : "text-gray-400 hover:text-red-400"
+                    }`} />
+                    <div className="relative inline-block">
+                      <span className={`text-[10px] font-medium leading-tight transition-all duration-300 ${
+                        navStatus === navItem.name ? "text-red-400" : "text-gray-400"
+                      }`}>{navItem.name}</span>
+                      {navStatus === navItem.name && (
+                        <motion.span
+                          initial={{ scaleX: 0, opacity: 0 }}
+                          animate={{ scaleX: 1, opacity: 1 }}
+                          exit={{ scaleX: 0, opacity: 0 }}
+                          transition={{ duration: 0.3, ease: "easeOut" }}
+                          className="absolute -bottom-1 left-0 right-0 h-0.5 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.9),0_0_20px_rgba(255,255,255,0.5)]"
+                        ></motion.span>
+                      )}
+                    </div>
+                  </Link>
+                </motion.div>
               )
             ))}
-          </div>
-
-          {/* Right Side - Icons (Search & User) */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Search Icon */}
-            <button
-              onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
-              className="p-2 rounded-lg bg-transparent hover:bg-gray-800/50 transition-all duration-300"
-            >
-              <FiSearch className="text-white text-xl" />
-            </button>
-
-            {/* User Profile Icon */}
-            <div className="relative" ref={userDropdownRef}>
-              <button
-                onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                className="p-2 rounded-lg bg-transparent hover:bg-gray-800/50 transition-all duration-300 relative"
-              >
-                <BiUser className="text-white text-xl" />
-                {userDropdownOpen && (
-                  <motion.div
-                    layoutId="userActiveIndicator"
-                    className="absolute inset-0 rounded-lg bg-red-500/20 border border-red-500/30"
-                    initial={false}
-                    transition={{
-                      type: "spring",
-                      stiffness: 300,
-                      damping: 35,
-                      duration: 0.6
-                    }}
-                  />
-                )}
-              </button>
-            </div>
           </div>
         </nav>
       </motion.div>
