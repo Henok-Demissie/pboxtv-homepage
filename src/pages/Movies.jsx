@@ -121,6 +121,7 @@ export default function Movies() {
     if (genreName) {
 
       params.genre = genreName;
+      params.genres = genreName; // Also send as genres parameter for better API compatibility
 
     }
 
@@ -150,15 +151,173 @@ export default function Movies() {
 
           const responseData = response.data || {};
 
-          const moviesData = responseData.movies || responseData.results || [];
+          let moviesData = responseData.movies || responseData.results || [];
 
           const totalCount = responseData.total_count || responseData.total || moviesData.length || 0;
 
           
 
+          // Perfect client-side genre filtering - always apply for accuracy
+
+          if (genreName && moviesData.length > 0) {
+
+            const formattedGenre = genreName.trim().toLowerCase();
+
+            
+
+            // Genre normalization map for better matching
+
+            const genreMap = {
+
+              'science fiction': ['science fiction', 'sci-fi', 'scifi', 'sf'],
+
+              'sci-fi': ['science fiction', 'sci-fi', 'scifi', 'sf'],
+
+              'tv movie': ['tv movie', 'tv', 'television movie'],
+
+              'romance': ['romance', 'romantic'],
+
+              'action': ['action'],
+
+              'adventure': ['adventure'],
+
+              'animation': ['animation', 'animated'],
+
+              'comedy': ['comedy', 'comedies'],
+
+              'crime': ['crime'],
+
+              'documentary': ['documentary', 'documentaries'],
+
+              'drama': ['drama', 'dramas'],
+
+              'family': ['family'],
+
+              'fantasy': ['fantasy'],
+
+              'history': ['history', 'historical'],
+
+              'horror': ['horror'],
+
+              'music': ['music', 'musical'],
+
+              'mystery': ['mystery', 'mysteries'],
+
+              'thriller': ['thriller', 'thrillers'],
+
+              'war': ['war'],
+
+              'western': ['western', 'westerns']
+
+            };
+
+            
+
+            const genreVariations = genreMap[formattedGenre] || [formattedGenre];
+
+            
+
+            const filteredMovies = moviesData.filter(movie => {
+
+              if (!movie.genres || (Array.isArray(movie.genres) && movie.genres.length === 0)) {
+
+                return false;
+
+              }
+
+              
+
+              // Normalize movie genres
+
+              let movieGenres = [];
+
+              if (Array.isArray(movie.genres)) {
+
+                movieGenres = movie.genres.map(g => {
+
+                  if (typeof g === 'string') {
+
+                    return g.trim().toLowerCase();
+
+                  } else if (g && typeof g === 'object') {
+
+                    return (g.name || g.genre || '').trim().toLowerCase();
+
+                  }
+
+                  return '';
+
+                }).filter(g => g.length > 0);
+
+              } else if (typeof movie.genres === 'string') {
+
+                movieGenres = movie.genres.split(',').map(g => g.trim().toLowerCase()).filter(g => g.length > 0);
+
+              }
+
+              
+
+              // Check for exact match or variation match
+
+              return movieGenres.some(movieGenre => {
+
+                // Exact match
+
+                if (movieGenre === formattedGenre) return true;
+
+                
+
+                // Check against genre variations
+
+                return genreVariations.some(variation => {
+
+                  if (movieGenre === variation) return true;
+
+                  // Handle compound genres like "Science Fiction" matching "Sci-Fi"
+
+                  if (movieGenre.includes(variation) || variation.includes(movieGenre)) {
+
+                    // Only match if it's a complete word match (not partial)
+
+                    const regex = new RegExp(`\\b${variation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+
+                    return regex.test(movieGenre);
+
+                  }
+
+                  return false;
+
+                });
+
+              });
+
+            });
+
+            
+
+            // Always use filtered results for perfect filtering
+
+            moviesData = filteredMovies;
+
+            
+
+            console.log(`Perfect genre filter applied: ${genreName}`, {
+
+              originalCount: responseData.movies?.length || responseData.results?.length || 0,
+
+              filteredCount: filteredMovies.length,
+
+              genreVariations: genreVariations
+
+            });
+
+          }
+
+          
+
           setMovies(Array.isArray(moviesData) ? moviesData : []);
 
-          setMoviesDataForPageCount(totalCount);
+          setMoviesDataForPageCount(genreName ? moviesData.length : totalCount);
 
           setIsMoviesDataLoading(false);
 
@@ -176,15 +335,173 @@ export default function Movies() {
 
               const responseData = response.data || response;
 
-              const moviesData = responseData.movies || responseData.results || responseData || [];
+              let moviesData = responseData.movies || responseData.results || responseData || [];
 
               const totalCount = responseData.total_count || responseData.total || moviesData.length || 0;
 
               
 
+              // Perfect client-side genre filtering - always apply for accuracy
+
+              if (genreName && moviesData.length > 0) {
+
+                const formattedGenre = genreName.trim().toLowerCase();
+
+                
+
+                // Genre normalization map for better matching
+
+                const genreMap = {
+
+                  'science fiction': ['science fiction', 'sci-fi', 'scifi', 'sf'],
+
+                  'sci-fi': ['science fiction', 'sci-fi', 'scifi', 'sf'],
+
+                  'tv movie': ['tv movie', 'tv', 'television movie'],
+
+                  'romance': ['romance', 'romantic'],
+
+                  'action': ['action'],
+
+                  'adventure': ['adventure'],
+
+                  'animation': ['animation', 'animated'],
+
+                  'comedy': ['comedy', 'comedies'],
+
+                  'crime': ['crime'],
+
+                  'documentary': ['documentary', 'documentaries'],
+
+                  'drama': ['drama', 'dramas'],
+
+                  'family': ['family'],
+
+                  'fantasy': ['fantasy'],
+
+                  'history': ['history', 'historical'],
+
+                  'horror': ['horror'],
+
+                  'music': ['music', 'musical'],
+
+                  'mystery': ['mystery', 'mysteries'],
+
+                  'thriller': ['thriller', 'thrillers'],
+
+                  'war': ['war'],
+
+                  'western': ['western', 'westerns']
+
+                };
+
+                
+
+                const genreVariations = genreMap[formattedGenre] || [formattedGenre];
+
+                
+
+                const filteredMovies = moviesData.filter(movie => {
+
+                  if (!movie.genres || (Array.isArray(movie.genres) && movie.genres.length === 0)) {
+
+                    return false;
+
+                  }
+
+                  
+
+                  // Normalize movie genres
+
+                  let movieGenres = [];
+
+                  if (Array.isArray(movie.genres)) {
+
+                    movieGenres = movie.genres.map(g => {
+
+                      if (typeof g === 'string') {
+
+                        return g.trim().toLowerCase();
+
+                      } else if (g && typeof g === 'object') {
+
+                        return (g.name || g.genre || '').trim().toLowerCase();
+
+                      }
+
+                      return '';
+
+                    }).filter(g => g.length > 0);
+
+                  } else if (typeof movie.genres === 'string') {
+
+                    movieGenres = movie.genres.split(',').map(g => g.trim().toLowerCase()).filter(g => g.length > 0);
+
+                  }
+
+                  
+
+                  // Check for exact match or variation match
+
+                  return movieGenres.some(movieGenre => {
+
+                    // Exact match
+
+                    if (movieGenre === formattedGenre) return true;
+
+                    
+
+                    // Check against genre variations
+
+                    return genreVariations.some(variation => {
+
+                      if (movieGenre === variation) return true;
+
+                      // Handle compound genres like "Science Fiction" matching "Sci-Fi"
+
+                      if (movieGenre.includes(variation) || variation.includes(movieGenre)) {
+
+                        // Only match if it's a complete word match (not partial)
+
+                        const regex = new RegExp(`\\b${variation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+
+                        return regex.test(movieGenre);
+
+                      }
+
+                      return false;
+
+                    });
+
+                  });
+
+                });
+
+                
+
+                // Always use filtered results for perfect filtering
+
+                moviesData = filteredMovies;
+
+                
+
+                console.log(`Perfect genre filter applied: ${genreName}`, {
+
+                  originalCount: responseData.movies?.length || responseData.results?.length || 0,
+
+                  filteredCount: filteredMovies.length,
+
+                  genreVariations: genreVariations
+
+                });
+
+              }
+
+              
+
               setMovies(Array.isArray(moviesData) ? moviesData : []);
 
-              setMoviesDataForPageCount(totalCount);
+              setMoviesDataForPageCount(genreName ? moviesData.length : totalCount);
 
               setIsMoviesDataLoading(false);
 
@@ -214,15 +531,173 @@ export default function Movies() {
 
           const responseData = response.data || response;
 
-          const moviesData = responseData.movies || responseData.results || responseData || [];
+          let moviesData = responseData.movies || responseData.results || responseData || [];
 
           const totalCount = responseData.total_count || responseData.total || moviesData.length || 0;
 
           
 
+          // Perfect client-side genre filtering - always apply for accuracy
+
+          if (genreName && moviesData.length > 0) {
+
+            const formattedGenre = genreName.trim().toLowerCase();
+
+            
+
+            // Genre normalization map for better matching
+
+            const genreMap = {
+
+              'science fiction': ['science fiction', 'sci-fi', 'scifi', 'sf'],
+
+              'sci-fi': ['science fiction', 'sci-fi', 'scifi', 'sf'],
+
+              'tv movie': ['tv movie', 'tv', 'television movie'],
+
+              'romance': ['romance', 'romantic'],
+
+              'action': ['action'],
+
+              'adventure': ['adventure'],
+
+              'animation': ['animation', 'animated'],
+
+              'comedy': ['comedy', 'comedies'],
+
+              'crime': ['crime'],
+
+              'documentary': ['documentary', 'documentaries'],
+
+              'drama': ['drama', 'dramas'],
+
+              'family': ['family'],
+
+              'fantasy': ['fantasy'],
+
+              'history': ['history', 'historical'],
+
+              'horror': ['horror'],
+
+              'music': ['music', 'musical'],
+
+              'mystery': ['mystery', 'mysteries'],
+
+              'thriller': ['thriller', 'thrillers'],
+
+              'war': ['war'],
+
+              'western': ['western', 'westerns']
+
+            };
+
+            
+
+            const genreVariations = genreMap[formattedGenre] || [formattedGenre];
+
+            
+
+            const filteredMovies = moviesData.filter(movie => {
+
+              if (!movie.genres || (Array.isArray(movie.genres) && movie.genres.length === 0)) {
+
+                return false;
+
+              }
+
+              
+
+              // Normalize movie genres
+
+              let movieGenres = [];
+
+              if (Array.isArray(movie.genres)) {
+
+                movieGenres = movie.genres.map(g => {
+
+                  if (typeof g === 'string') {
+
+                    return g.trim().toLowerCase();
+
+                  } else if (g && typeof g === 'object') {
+
+                    return (g.name || g.genre || '').trim().toLowerCase();
+
+                  }
+
+                  return '';
+
+                }).filter(g => g.length > 0);
+
+              } else if (typeof movie.genres === 'string') {
+
+                movieGenres = movie.genres.split(',').map(g => g.trim().toLowerCase()).filter(g => g.length > 0);
+
+              }
+
+              
+
+              // Check for exact match or variation match
+
+              return movieGenres.some(movieGenre => {
+
+                // Exact match
+
+                if (movieGenre === formattedGenre) return true;
+
+                
+
+                // Check against genre variations
+
+                return genreVariations.some(variation => {
+
+                  if (movieGenre === variation) return true;
+
+                  // Handle compound genres like "Science Fiction" matching "Sci-Fi"
+
+                  if (movieGenre.includes(variation) || variation.includes(movieGenre)) {
+
+                    // Only match if it's a complete word match (not partial)
+
+                    const regex = new RegExp(`\\b${variation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+
+                    return regex.test(movieGenre);
+
+                  }
+
+                  return false;
+
+                });
+
+              });
+
+            });
+
+            
+
+            // Always use filtered results for perfect filtering
+
+            moviesData = filteredMovies;
+
+            
+
+            console.log(`Perfect genre filter applied: ${genreName}`, {
+
+              originalCount: responseData.movies?.length || responseData.results?.length || 0,
+
+              filteredCount: filteredMovies.length,
+
+              genreVariations: genreVariations
+
+            });
+
+          }
+
+          
+
           setMovies(Array.isArray(moviesData) ? moviesData : []);
 
-          setMoviesDataForPageCount(totalCount);
+          setMoviesDataForPageCount(genreName ? moviesData.length : totalCount);
 
           setIsMoviesDataLoading(false);
 
@@ -242,7 +717,12 @@ export default function Movies() {
 
     }
 
-  }, [movieFilter, currentPage]);
+  }, [movieFilter, currentPage, BASE]);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [movieFilter]);
 
 
 
