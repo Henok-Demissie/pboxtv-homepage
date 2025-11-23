@@ -103,6 +103,7 @@ export default function MovieDetails() {
         isMovieDataLoading={isDetailsLoading}
         detailType="movie"
         setIsWatchMoviePopupOpen={setIsWatchMoviePopupOpen}
+        isWatchMoviePopupOpen={isWatchMoviePopupOpen}
       />
       <Similars
         movieData={similarMovies}
@@ -111,12 +112,15 @@ export default function MovieDetails() {
         detailType="similarMovies"
         seeMoreButtonLink={`/similarMov/${movieID}`}
       />
-      <Watch
-        isWatchMoviePopupOpen={isWatchMoviePopupOpen}
-        setIsWatchMoviePopupOpen={setIsWatchMoviePopupOpen}
-        id={movieDetail}
-        popUpType="movie"
-      />
+      {/* Fullscreen Watch component - hidden when using embedded player */}
+      {false && (
+        <Watch
+          isWatchMoviePopupOpen={false}
+          setIsWatchMoviePopupOpen={setIsWatchMoviePopupOpen}
+          id={movieDetail}
+          popUpType="movie"
+        />
+      )}
     </div>
   );
 }
