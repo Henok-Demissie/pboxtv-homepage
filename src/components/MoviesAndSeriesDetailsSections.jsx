@@ -1849,26 +1849,26 @@ export default function MoviesAndSeriesDetailsSections(props) {
                     }}
                     className="absolute inset-0 cursor-pointer transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-xl hover:shadow-white/20 group bg-gradient-to-br from-gray-700/20 to-gray-900/40 touch-manipulation"
                     style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
+
+              <div className="absolute z-20 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-white/20 rounded-full animate-pulse"></div>
+                  <div className="absolute inset-0 bg-white/15 rounded-full animate-ping"></div>
+                  <button
+                    disabled={isLoadingPlayback}
+                    className={`relative bg-white/10 hover:bg-white/20 backdrop-blur-lg text-white rounded-full p-3 sm:p-4 text-2xl sm:text-3xl lg:text-4xl transition-all duration-300 hover:scale-105 shadow-lg shadow-black/20 hover:shadow-xl hover:shadow-black/30 border border-white/20 hover:border-white/30 ${isLoadingPlayback ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
+                    <BiPlay className="ml-0.5" />
+                  </button>
+                </div>
+              </div>
 
-                    <div className="absolute z-20 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                      <div className="relative">
-                        <div className="absolute inset-0 bg-white/20 rounded-full animate-pulse"></div>
-                        <div className="absolute inset-0 bg-white/15 rounded-full animate-ping"></div>
-                        <button
-                          disabled={isLoadingPlayback}
-                          className={`relative bg-white/10 hover:bg-white/20 backdrop-blur-lg text-white rounded-full p-3 sm:p-4 text-2xl sm:text-3xl lg:text-4xl transition-all duration-300 hover:scale-105 shadow-lg shadow-black/20 hover:shadow-xl hover:shadow-black/30 border border-white/20 hover:border-white/30 ${isLoadingPlayback ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          <BiPlay className="ml-0.5" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <LazyLoadImage
-                      src={props.movieData.backdrop}
-                      effect="black-and-white"
-                      alt={props.movieData.title}
+              <LazyLoadImage
+                src={props.movieData.backdrop}
+                effect="black-and-white"
+                alt={props.movieData.title}
                       className="w-full h-full rounded-2xl shrink-0 object-cover"
                       style={{
                         width: '100%',
