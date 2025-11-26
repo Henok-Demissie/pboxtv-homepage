@@ -143,6 +143,7 @@ export default function MovieDetails() {
         episodes={episodes}
         setEpisodes={setEpisodes}
         setIsWatchEpisodePopupOpen={setIsWatchEpisodePopupOpen}
+        isWatchEpisodePopupOpen={isWatchEpisodePopupOpen}
       />
 
       <Similars
@@ -152,17 +153,20 @@ export default function MovieDetails() {
         detailType="similarMovies"
         seeMoreButtonLink={`/similarSeries/${seriesID}`}
       />
-      <Watch
-        isWatchEpisodePopupOpen={isWatchEpisodePopupOpen}
-        setIsWatchEpisodePopupOpen={setIsWatchEpisodePopupOpen}
-        id={seriesDetail}
-        seasonNumber={seasonNumber}
-        episodeNumber={episodeNumber}
-        setSeasonNumber={setSeasonNumber}
-        setEpisodeNumber={setEpisodeNumber}
-        episodes={episodes}
-        popUpType="episode"
-      />
+      {/* Fullscreen Watch component - hidden when using embedded player */}
+      {false && (
+        <Watch
+          isWatchEpisodePopupOpen={false}
+          setIsWatchEpisodePopupOpen={setIsWatchEpisodePopupOpen}
+          id={seriesDetail}
+          seasonNumber={seasonNumber}
+          episodeNumber={episodeNumber}
+          setSeasonNumber={setSeasonNumber}
+          setEpisodeNumber={setEpisodeNumber}
+          episodes={episodes}
+          popUpType="episode"
+        />
+      )}
     </div>
   );
 }

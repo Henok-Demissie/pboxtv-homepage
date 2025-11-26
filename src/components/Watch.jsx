@@ -530,7 +530,15 @@ export default function Watch(props) {
     onPlay: () => updateState({ isPlaying: true }),
     onPause: () => updateState({ isPlaying: false }),
     onWaiting: () => updateState({ isBuffering: true }),
-    onCanPlay: () => updateState({ isBuffering: false }),
+    onCanPlay: () => {
+      updateState({ isBuffering: false });
+      // Auto-play when video can play
+      if (refs.video.current && refs.video.current.paused) {
+        refs.video.current.play().catch(() => {
+          // Autoplay was prevented, user will need to click play
+        });
+      }
+    },
     onError: () => {
       updateState({ videoError: true, isBuffering: false });
       showPlaybackOptions();
