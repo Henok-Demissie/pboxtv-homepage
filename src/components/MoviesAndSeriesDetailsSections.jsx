@@ -139,6 +139,17 @@ export default function MoviesAndSeriesDetailsSections(props) {
       const shortUrl = await shortenUrl(downloadUrl);
       setVideoUrl(shortUrl);
       setIsPlayingMovie(true);
+      
+      // On mobile, ensure video plays immediately after URL is set
+      if (isMobile && videoRef.current) {
+        setTimeout(() => {
+          if (videoRef.current && videoRef.current.readyState >= 2) {
+            videoRef.current.play().catch(() => {
+              // Will play on next user interaction
+            });
+          }
+        }, 100);
+      }
       // Keep loading state true, video events will handle it
     } catch (err) {
       console.error('Error loading video:', err);
@@ -187,29 +198,92 @@ export default function MoviesAndSeriesDetailsSections(props) {
   // Fullscreen handlers
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement));
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement || 
+        document.webkitFullscreenElement || 
+        document.mozFullScreenElement || 
+        document.msFullscreenElement ||
+        (videoRef.current && videoRef.current.webkitDisplayingFullscreen)
+      );
+      setIsFullscreen(isCurrentlyFullscreen);
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
     document.addEventListener('mozfullscreenchange', handleFullscreenChange);
     document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+    
+    // iOS specific events
+    const video = videoRef.current;
+    if (video) {
+      video.addEventListener('webkitbeginfullscreen', handleFullscreenChange);
+      video.addEventListener('webkitendfullscreen', handleFullscreenChange);
+    }
 
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
       document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
       document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+      if (video) {
+        video.removeEventListener('webkitbeginfullscreen', handleFullscreenChange);
+        video.removeEventListener('webkitendfullscreen', handleFullscreenChange);
+      }
     };
   }, []);
 
   const toggleFullscreen = () => {
+    if (!videoRef.current) return;
+
+    // Mobile-specific fullscreen handling
+    if (isMobile) {
+      if (!isFullscreen) {
+        // For iOS Safari
+        if (videoRef.current.webkitEnterFullscreen) {
+          videoRef.current.webkitEnterFullscreen();
+          setIsFullscreen(true);
+          return;
+        }
+        // For Android Chrome and other mobile browsers
+        if (videoRef.current.requestFullscreen) {
+          videoRef.current.requestFullscreen().catch(err => {
+            console.error('Fullscreen error:', err);
+            // Fallback: try container
+            if (containerRef.current?.requestFullscreen) {
+              containerRef.current.requestFullscreen().catch(() => {});
+            }
+          });
+          return;
+        }
+        // Fallback to container
+        const element = containerRef.current;
+        if (element) {
+          if (element.requestFullscreen) {
+            element.requestFullscreen().catch(() => {});
+          } else if (element.webkitRequestFullscreen) {
+            element.webkitRequestFullscreen();
+          }
+        }
+      } else {
+        // Exit fullscreen
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        } else if (document.webkitCancelFullScreen) {
+          document.webkitCancelFullScreen();
+        }
+      }
+      return;
+    }
+
+    // Desktop fullscreen handling
     const element = containerRef.current || videoRef.current;
     if (!element) return;
 
     if (!isFullscreen) {
       if (element.requestFullscreen) {
-        element.requestFullscreen();
+        element.requestFullscreen().catch(() => {});
       } else if (element.webkitRequestFullscreen) {
         element.webkitRequestFullscreen();
       } else if (element.mozRequestFullScreen) {
@@ -219,7 +293,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
       }
     } else {
       if (document.exitFullscreen) {
-        document.exitFullscreen();
+        document.exitFullscreen().catch(() => {});
       } else if (document.webkitExitFullscreen) {
         document.webkitExitFullscreen();
       } else if (document.mozCancelFullScreen) {
@@ -1002,6 +1076,8 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           x5-playsinline="true"
                           x5-video-player-type="h5"
                           x5-video-player-fullscreen="true"
+                          x5-video-orientation="portrait"
+                          controls={false}
                           onEnded={stopPlaying}
                           onError={handleVideoError}
                           onLoadedMetadata={() => {
@@ -1014,14 +1090,27 @@ export default function MoviesAndSeriesDetailsSections(props) {
                             setIsLoadingPlayback(false);
                             if (videoRef.current) {
                               setDuration(videoRef.current.duration);
-                              videoRef.current.play().catch(err => {
-                                console.error('Play error:', err);
-                                setTimeout(() => {
-                                  if (videoRef.current && !videoRef.current.error) {
-                                    videoRef.current.play().catch(() => {});
+                              // Force play - user already clicked play button
+                              const playPromise = videoRef.current.play();
+                              if (playPromise !== undefined) {
+                                playPromise.catch(err => {
+                                  console.error('Play error:', err);
+                                  // On mobile, retry quickly since user already interacted
+                                  if (isMobile) {
+                                    setTimeout(() => {
+                                      if (videoRef.current && !videoRef.current.error) {
+                                        videoRef.current.play().catch(() => {});
+                                      }
+                                    }, 300);
+                                  } else {
+                                    setTimeout(() => {
+                                      if (videoRef.current && !videoRef.current.error) {
+                                        videoRef.current.play().catch(() => {});
+                                      }
+                                    }, 500);
                                   }
-                                }, 500);
-                              });
+                                });
+                              }
                             }
                           }}
                           onLoadedData={() => {
@@ -1029,7 +1118,13 @@ export default function MoviesAndSeriesDetailsSections(props) {
                             if (videoRef.current) {
                               setDuration(videoRef.current.duration);
                               if (videoRef.current.paused) {
-                                videoRef.current.play().catch(() => {});
+                                // Force play on mobile
+                                const playPromise = videoRef.current.play();
+                                if (playPromise !== undefined) {
+                                  playPromise.catch(() => {
+                                    // Silent fail, will retry on user interaction
+                                  });
+                                }
                               }
                             }
                           }}
