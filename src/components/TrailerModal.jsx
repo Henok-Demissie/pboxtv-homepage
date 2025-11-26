@@ -49,6 +49,31 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
     };
   }, []);
 
+  // Hide body scroll and adjust styles when in fullscreen on mobile
+  useEffect(() => {
+    if (isFullscreen && isMobile) {
+      // Prevent body scroll
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      document.body.style.height = '100%';
+    } else {
+      // Restore body scroll
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
+    }
+
+    return () => {
+      // Cleanup: restore body scroll
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
+    };
+  }, [isFullscreen, isMobile]);
+
   const toggleFullscreen = async () => {
     if (!containerRef.current) return;
 
@@ -89,11 +114,16 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
           container.style.position = 'fixed';
           container.style.top = '0';
           container.style.left = '0';
+          container.style.right = '0';
+          container.style.bottom = '0';
           container.style.width = '100vw';
           container.style.height = '100vh';
           container.style.zIndex = '9999';
           container.style.paddingBottom = '0';
           container.style.minHeight = '100vh';
+          container.style.maxHeight = '100vh';
+          container.style.borderRadius = '0';
+          container.style.margin = '0';
           setIsFullscreen(true);
         }
       } catch (err) {
@@ -103,11 +133,16 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
           container.style.position = 'fixed';
           container.style.top = '0';
           container.style.left = '0';
+          container.style.right = '0';
+          container.style.bottom = '0';
           container.style.width = '100vw';
           container.style.height = '100vh';
           container.style.zIndex = '9999';
           container.style.paddingBottom = '0';
           container.style.minHeight = '100vh';
+          container.style.maxHeight = '100vh';
+          container.style.borderRadius = '0';
+          container.style.margin = '0';
           setIsFullscreen(true);
         }
       }
@@ -128,11 +163,16 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
             container.style.position = '';
             container.style.top = '';
             container.style.left = '';
+            container.style.right = '';
+            container.style.bottom = '';
             container.style.width = '';
             container.style.height = '';
             container.style.zIndex = '';
             container.style.paddingBottom = '';
             container.style.minHeight = '';
+            container.style.maxHeight = '';
+            container.style.borderRadius = '';
+            container.style.margin = '';
             setIsFullscreen(false);
           }
         }
@@ -143,11 +183,16 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
           container.style.position = '';
           container.style.top = '';
           container.style.left = '';
+          container.style.right = '';
+          container.style.bottom = '';
           container.style.width = '';
           container.style.height = '';
           container.style.zIndex = '';
           container.style.paddingBottom = '';
           container.style.minHeight = '';
+          container.style.maxHeight = '';
+          container.style.borderRadius = '';
+          container.style.margin = '';
           setIsFullscreen(false);
         }
       }
@@ -344,9 +389,14 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
   };
 
   const handleClose = () => {
+    // Exit fullscreen if active
+    if (isFullscreen) {
+      toggleFullscreen();
+    }
     setVideoId(null);
     setIsLoading(true);
     setError(null);
+    setIsFullscreen(false);
     onClose();
   };
 
@@ -359,11 +409,11 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
           hideCloseButton={false}
           placement="center"
           classNames={{
-            base: "bg-black/95 backdrop-blur-xl border border-gray-800 m-0 sm:m-4 max-w-[100vw] sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[85vw] xl:max-w-[80vw]",
-            header: "border-b border-gray-800 px-3 sm:px-6 py-2 sm:py-4",
-            body: "p-0 sm:p-4 pb-2 sm:pb-4",
-            wrapper: "p-0 sm:p-4",
-            backdrop: "bg-black/80"
+            base: `bg-black/95 backdrop-blur-xl border border-gray-800 m-0 sm:m-4 max-w-[100vw] sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[85vw] xl:max-w-[80vw] ${isFullscreen && isMobile ? '!fixed !inset-0 !m-0 !max-w-none !w-screen !h-screen !rounded-none !border-0' : ''}`,
+            header: `border-b border-gray-800 px-3 sm:px-6 py-2 sm:py-4 ${isFullscreen && isMobile ? '!hidden' : ''}`,
+            body: `p-0 sm:p-4 pb-2 sm:pb-4 ${isFullscreen && isMobile ? '!p-0' : ''}`,
+            wrapper: `p-0 sm:p-4 ${isFullscreen && isMobile ? '!p-0' : ''}`,
+            backdrop: `bg-black/80 ${isFullscreen && isMobile ? '!bg-black' : ''}`
           }}
       motionProps={{
         variants: {
@@ -389,7 +439,7 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
       <ModalContent>
         {(onClose) => (
           <>
-            <ModalHeader className="flex items-center justify-between">
+            <ModalHeader className={`flex items-center justify-between ${isFullscreen && isMobile ? 'hidden' : ''}`}>
               <h2 className="text-base sm:text-xl font-bold text-white truncate pr-2">
                 {movieTitle} - Trailer
               </h2>
@@ -417,20 +467,35 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
                 </button>
               </div>
             </ModalHeader>
-            <ModalBody className="!pb-2 sm:!pb-4">
+            <ModalBody className={`!pb-2 sm:!pb-4 ${isFullscreen && isMobile ? '!p-0' : ''}`}>
+              {/* Exit Fullscreen Button - Only visible in fullscreen on mobile */}
+              {isFullscreen && isMobile && (
+                <button
+                  onClick={toggleFullscreen}
+                  className="absolute top-4 right-4 z-[10000] text-white hover:text-red-500 active:text-red-400 transition-colors p-3 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:bg-black/80 flex-shrink-0 touch-manipulation"
+                  title="Exit Fullscreen"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                >
+                  <BiExitFullscreen className="text-2xl" />
+                </button>
+              )}
               <div 
                 ref={containerRef}
-                className={`relative w-full bg-black rounded-lg overflow-hidden ${isFullscreen ? 'fixed inset-0 w-screen h-screen z-[9999]' : ''}`}
-                style={isFullscreen ? {
+                className={`relative w-full bg-black ${isFullscreen && isMobile ? 'fixed inset-0 w-screen h-screen z-[9999] rounded-none' : 'rounded-lg overflow-hidden'}`}
+                style={isFullscreen && isMobile ? {
                   position: 'fixed',
                   top: 0,
                   left: 0,
+                  right: 0,
+                  bottom: 0,
                   width: '100vw',
                   height: '100vh',
                   zIndex: 9999,
                   paddingBottom: 0,
                   minHeight: '100vh',
-                  borderRadius: 0
+                  maxHeight: '100vh',
+                  borderRadius: 0,
+                  margin: 0
                 } : {
                   paddingBottom: isMobile ? '56.25%' : '70%',
                   minHeight: isMobile ? '200px' : '400px',
@@ -476,12 +541,21 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
                 {videoId && !isLoading && (
                   <iframe
                     ref={iframeRef}
-                    className="absolute top-0 left-0 w-full h-full"
+                    className={`absolute top-0 left-0 ${isFullscreen && isMobile ? 'w-screen h-screen' : 'w-full h-full'}`}
                     src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&playsinline=1&modestbranding=1&fs=1&enablejsapi=1`}
                     title={`${movieTitle} Trailer`}
                     frameBorder="0"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                     allowFullScreen
+                    style={isFullscreen && isMobile ? {
+                      width: '100vw',
+                      height: '100vh',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      border: 'none',
+                      borderRadius: 0
+                    } : {}}
                   />
                 )}
               </div>
