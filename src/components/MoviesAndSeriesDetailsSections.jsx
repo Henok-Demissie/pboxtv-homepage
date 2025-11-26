@@ -59,21 +59,33 @@ export default function MoviesAndSeriesDetailsSections(props) {
     if (isMobile && videoUrl && isPlayingMovie && videoRef.current) {
       const video = videoRef.current;
       
-      // Wait for video src to be set
+      // Ensure video has src set
+      if (!video.src && videoUrl) {
+        video.src = videoUrl;
+        video.load();
+      }
+      
+      // Wait for video src to be set and try to play
       const checkAndPlay = () => {
-        if (video.src && video.readyState >= 0) {
+        if (video.src && (video.readyState >= 1 || video.readyState === 0)) {
           // Try to play immediately
           const playVideo = () => {
             if (video.paused && !video.error) {
+              // Set mobile-friendly attributes
+              video.preload = 'auto';
+              video.muted = false;
+              
               video.play()
                 .then(() => {
                   setIsPlaying(true);
                   setIsLoadingPlayback(false);
+                  console.log('Video auto-played successfully via useEffect');
                 })
-                .catch(() => {
+                .catch((err) => {
+                  console.log('Play failed in useEffect, will retry:', err);
                   // Retry after a short delay
                   setTimeout(() => {
-                    if (video && video.readyState >= 1 && video.paused) {
+                    if (video && video.readyState >= 1 && video.paused && !video.error) {
                       video.play()
                         .then(() => {
                           setIsPlaying(true);
@@ -81,7 +93,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                         })
                         .catch(() => {});
                     }
-                  }, 300);
+                  }, 500);
                 });
             }
           };
@@ -89,14 +101,16 @@ export default function MoviesAndSeriesDetailsSections(props) {
           // Try immediately
           playVideo();
           
-          // Also try after a short delay to ensure src is fully set
+          // Also try after delays to ensure src is fully set
           setTimeout(playVideo, 200);
+          setTimeout(playVideo, 500);
         }
       };
       
-      // Check immediately and also after a delay
+      // Check immediately and also after delays
       checkAndPlay();
       setTimeout(checkAndPlay, 100);
+      setTimeout(checkAndPlay, 300);
     }
   }, [videoUrl, isPlayingMovie, isMobile]);
 
@@ -177,7 +191,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
     setIsTrailerModalOpen(true);
   };
 
-  const loadVideoUrl = async (source) => {
+  const loadVideoUrl = async (source, userGesture = false) => {
     setIsLoadingPlayback(true);
     setVideoError(null);
     setShowControls(true);
@@ -218,48 +232,68 @@ export default function MoviesAndSeriesDetailsSections(props) {
       setVideoUrl(shortUrl);
       setIsPlayingMovie(true);
       
-      // Wait for video element to update with new src
-      setTimeout(() => {
-        if (videoRef.current) {
-          // Set optimal buffering settings
-          videoRef.current.preload = isMobile ? 'metadata' : 'auto';
-          // Ensure smooth playback
-          videoRef.current.playbackRate = 1;
-          // Remove crossOrigin if it causes issues
-          if (videoRef.current.hasAttribute('crossOrigin')) {
-            videoRef.current.removeAttribute('crossOrigin');
+      // On mobile with user gesture, try to play immediately
+      if (isMobile && userGesture && videoRef.current) {
+        // Set src immediately and synchronously
+        const video = videoRef.current;
+        video.src = shortUrl;
+        video.preload = 'auto';
+        video.playbackRate = 1;
+        video.muted = false;
+        video.removeAttribute('crossOrigin');
+        
+        // Load the video
+        video.load();
+        
+        // Try to play immediately while user gesture is still valid
+        // Use requestAnimationFrame to ensure DOM is updated but still within gesture context
+        requestAnimationFrame(() => {
+          if (video && video.src) {
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+              playPromise
+                .then(() => {
+                  setIsPlaying(true);
+                  setIsLoadingPlayback(false);
+                  console.log('Video playing successfully on mobile');
+                })
+                .catch((err) => {
+                  console.log('Initial play failed, will retry in handlers:', err);
+                  // Will retry in event handlers (onCanPlay, onLoadedData, etc.)
+                });
+            }
           }
-          
-          // On mobile, try to play immediately after setting src
-          if (isMobile && videoRef.current.src) {
-            // Wait a bit for src to be set, then try to play
-            setTimeout(() => {
-              if (videoRef.current && videoRef.current.src && videoRef.current.readyState >= 0) {
-                const playAttempt = () => {
-                  if (videoRef.current && !videoRef.current.paused) return; // Already playing
-                  
-                  videoRef.current.play().catch(() => {
-                    // If play fails, try again after a short delay
-                    if (videoRef.current && videoRef.current.readyState < 2) {
-                      setTimeout(() => {
-                        if (videoRef.current && videoRef.current.readyState >= 1) {
-                          videoRef.current.play().catch(() => {});
-                        }
-                      }, 300);
-                    }
-                  });
-                };
-                
-                // Try immediately
-                playAttempt();
-                
-                // Also try after a short delay to ensure src is fully loaded
-                setTimeout(playAttempt, 200);
-              }
-            }, 100);
+        });
+        
+        // Also try after a very short delay (still within gesture context window)
+        setTimeout(() => {
+          if (video && video.src && video.paused && !video.error) {
+            video.play()
+              .then(() => {
+                setIsPlaying(true);
+                setIsLoadingPlayback(false);
+                console.log('Video playing successfully on mobile (delayed attempt)');
+              })
+              .catch(() => {
+                // Will retry in event handlers
+              });
           }
-        }
-      }, 100);
+        }, 100);
+      } else {
+        // Wait for video element to update with new src
+        setTimeout(() => {
+          if (videoRef.current) {
+            // Set optimal buffering settings
+            videoRef.current.preload = isMobile ? 'metadata' : 'auto';
+            // Ensure smooth playback
+            videoRef.current.playbackRate = 1;
+            // Remove crossOrigin if it causes issues
+            if (videoRef.current.hasAttribute('crossOrigin')) {
+              videoRef.current.removeAttribute('crossOrigin');
+            }
+          }
+        }, 100);
+      }
       // Keep loading state true, video events will handle it
     } catch (err) {
       console.error('Error loading video:', err);
@@ -1026,7 +1060,12 @@ export default function MoviesAndSeriesDetailsSections(props) {
       // Prefer higher quality sources, but play first available
       const bestSource = sources[0]; // Already sorted by quality preference
       setSelectedSource(bestSource);
-      await loadVideoUrl(bestSource);
+      
+      // For mobile, start loading immediately (don't await) to preserve user gesture
+      // The loadVideoUrl function will handle the play attempt synchronously
+      loadVideoUrl(bestSource, true).catch(err => {
+        console.error('Error loading video:', err);
+      });
       return;
     }
 
@@ -1727,10 +1766,23 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 <>
                   {/* Play Button Overlay - Show when not playing */}
                   <div
-                    onClick={handlePlayClick}
-                    onTouchStart={(e) => {
+                    onClick={(e) => {
                       e.stopPropagation();
                       handlePlayClick();
+                    }}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                      // On mobile, ensure immediate response
+                      if (isMobile) {
+                        handlePlayClick();
+                      }
+                    }}
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      // Also handle on touch end for better mobile support
+                      if (isMobile && !isPlayingMovie) {
+                        handlePlayClick();
+                      }
                     }}
                     className="absolute inset-0 cursor-pointer transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-xl hover:shadow-white/20 group bg-gradient-to-br from-gray-700/20 to-gray-900/40 touch-manipulation"
                     style={{ WebkitTapHighlightColor: 'transparent' }}
