@@ -29,6 +29,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
   const [selectedSource, setSelectedSource] = useState(null);
   const [videoUrl, setVideoUrl] = useState(null);
   const [videoError, setVideoError] = useState(null);
+  const errorTimeoutRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1);
@@ -135,32 +136,52 @@ export default function MoviesAndSeriesDetailsSections(props) {
     setVideoError(null);
     setShowControls(true);
     
-    // On mobile, clear any previous video state for smoother loading
-    if (isMobile && videoRef.current) {
+    // Clear any error timeout
+    if (errorTimeoutRef.current) {
+      clearTimeout(errorTimeoutRef.current);
+      errorTimeoutRef.current = null;
+    }
+    
+    // Clear any previous video state for smoother loading
+    if (videoRef.current) {
       videoRef.current.pause();
+      videoRef.current.removeAttribute('crossOrigin');
       videoRef.current.src = '';
       videoRef.current.load();
     }
     
     try {
       const downloadUrl = generateDownloadUrl(source.id, source.name);
-      // On mobile, skip URL shortening for faster loading
-      const shortUrl = isMobile ? downloadUrl : await shortenUrl(downloadUrl);
+      // Try URL shortening, but don't wait too long - use direct URL as fallback
+      let shortUrl = downloadUrl;
+      try {
+        if (!isMobile) {
+          shortUrl = await Promise.race([
+            shortenUrl(downloadUrl),
+            new Promise((resolve) => setTimeout(() => resolve(downloadUrl), 2000))
+          ]);
+        }
+      } catch (shortenErr) {
+        console.warn('URL shortening failed, using direct URL:', shortenErr);
+        shortUrl = downloadUrl;
+      }
+      
       setVideoUrl(shortUrl);
       setIsPlayingMovie(true);
       
-      // On mobile, set video properties for smooth playback
-      if (isMobile && videoRef.current) {
-        // Wait for video element to be ready
-        setTimeout(() => {
-          if (videoRef.current) {
-            // Set optimal buffering settings
-            videoRef.current.preload = 'metadata';
-            // Ensure smooth playback
-            videoRef.current.playbackRate = 1;
+      // Wait for video element to update with new src
+      setTimeout(() => {
+        if (videoRef.current) {
+          // Set optimal buffering settings
+          videoRef.current.preload = isMobile ? 'metadata' : 'auto';
+          // Ensure smooth playback
+          videoRef.current.playbackRate = 1;
+          // Remove crossOrigin if it causes issues
+          if (videoRef.current.hasAttribute('crossOrigin')) {
+            videoRef.current.removeAttribute('crossOrigin');
           }
-        }, 50);
-      }
+        }
+      }, 100);
       // Keep loading state true, video events will handle it
     } catch (err) {
       console.error('Error loading video:', err);
@@ -249,28 +270,23 @@ export default function MoviesAndSeriesDetailsSections(props) {
     // Mobile-specific fullscreen handling
     if (isMobile) {
       if (!isFullscreen) {
-        // For iOS Safari
+        // For iOS Safari - use native fullscreen
         if (videoRef.current.webkitEnterFullscreen) {
           videoRef.current.webkitEnterFullscreen();
           setIsFullscreen(true);
           return;
         }
-        // For Android Chrome and other mobile browsers
-        if (videoRef.current.requestFullscreen) {
-          videoRef.current.requestFullscreen().catch(err => {
-            console.error('Fullscreen error:', err);
-            // Fallback: try container
-            if (containerRef.current?.requestFullscreen) {
-              containerRef.current.requestFullscreen().catch(() => {});
-            }
-          });
-          return;
-        }
-        // Fallback to container
-        const element = containerRef.current;
+        // For Android Chrome and other mobile browsers - use container for better control
+        const element = containerRef.current || videoRef.current;
         if (element) {
           if (element.requestFullscreen) {
-            element.requestFullscreen().catch(() => {});
+            element.requestFullscreen().catch(err => {
+              console.error('Fullscreen error:', err);
+              // Fallback: try video element
+              if (videoRef.current?.requestFullscreen) {
+                videoRef.current.requestFullscreen().catch(() => {});
+              }
+            });
           } else if (element.webkitRequestFullscreen) {
             element.webkitRequestFullscreen();
           }
@@ -288,7 +304,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
       return;
     }
 
-    // Desktop fullscreen handling
+    // Desktop fullscreen handling - use container for better control
     const element = containerRef.current || videoRef.current;
     if (!element) return;
 
@@ -360,22 +376,80 @@ export default function MoviesAndSeriesDetailsSections(props) {
 
   const handleVideoError = (e) => {
     console.error('Video error:', e);
-    setIsLoadingPlayback(false);
-    // Try to reload the video once
-    if (videoRef.current && videoUrl) {
+    const video = videoRef.current;
+    
+    if (!video || !videoUrl) {
+      // Don't show error immediately, wait a bit for video to load
       setTimeout(() => {
-        if (videoRef.current && videoRef.current.error) {
-          // Retry loading the video
-          videoRef.current.load();
-          videoRef.current.play().catch(() => {
-            // If still fails, show error
-            setVideoError('Unable to play video directly. Please use an external player.');
-          });
+        if (videoRef.current && (!videoRef.current.src || videoRef.current.error)) {
+          setVideoError('Unable to play video directly. Please use an external player.');
+          setIsLoadingPlayback(false);
         }
-      }, 1000);
-    } else {
-      setVideoError('Unable to play video directly. Please use an external player.');
+      }, 3000);
+      return;
     }
+
+    // Check error code
+    const error = video.error;
+    if (error) {
+      console.error('Video error code:', error.code, 'Message:', error.message);
+      
+      // Error code 4 (MEDIA_ERR_SRC_NOT_SUPPORTED) - try alternative approach
+      if (error.code === 4) {
+        // Try removing crossOrigin and reload
+        setTimeout(() => {
+          if (video && videoUrl) {
+            video.removeAttribute('crossOrigin');
+            video.src = '';
+            video.load();
+            setTimeout(() => {
+              video.src = videoUrl;
+              video.load();
+              video.play().catch(() => {
+                // If still fails after retry, show error after longer delay
+                errorTimeoutRef.current = setTimeout(() => {
+                  if (video && video.error) {
+                    setVideoError('Unable to play video directly. Please use an external player.');
+                    setIsLoadingPlayback(false);
+                  }
+                }, 5000);
+              });
+            }, 500);
+          }
+        }, 500);
+        return;
+      }
+    }
+
+    // Try to reload the video once - don't show error immediately
+    setTimeout(() => {
+      if (video && videoUrl && video.error) {
+        // Retry loading the video with fresh state
+        const currentSrc = video.src || videoUrl;
+        video.removeAttribute('crossOrigin');
+        video.src = '';
+        video.load();
+        setTimeout(() => {
+          if (video) {
+            video.src = currentSrc;
+            video.load();
+            video.play().catch(() => {
+              // Give it more time before showing error
+              setTimeout(() => {
+                if (video && video.error) {
+                  setVideoError('Unable to play video directly. Please use an external player.');
+                  setIsLoadingPlayback(false);
+                }
+              }, 4000);
+            });
+          }
+        }, 500);
+      } else if (video && !video.error) {
+        // Video recovered, clear error
+        setVideoError(null);
+        setIsLoadingPlayback(false);
+      }
+    }, 1000);
   };
 
   const openInVLC = async () => {
@@ -1034,8 +1108,19 @@ export default function MoviesAndSeriesDetailsSections(props) {
                     <>
                       <div 
                         ref={containerRef} 
-                        className="relative w-full h-full flex items-center justify-center bg-black"
-                        style={isMobile ? {
+                        className={`relative w-full h-full flex items-center justify-center bg-black ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}
+                        style={isFullscreen ? {
+                          width: '100vw',
+                          height: '100vh',
+                          minHeight: '100vh',
+                          maxHeight: '100vh',
+                          position: 'fixed',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          zIndex: 9999
+                        } : (isMobile ? {
                           minHeight: '200px',
                           maxHeight: '50vh',
                           width: '100%'
@@ -1043,7 +1128,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           minHeight: '300px',
                           maxHeight: '60vh',
                           width: '100%'
-                        }}
+                        })}
                         onTouchStart={() => {
                           setShowControls(true);
                           if (controlsTimeoutRef.current) {
@@ -1069,13 +1154,14 @@ export default function MoviesAndSeriesDetailsSections(props) {
                       >
                         <video
                           ref={videoRef}
-                          className="w-full h-full max-h-full object-contain"
+                          className={`w-full h-full ${isFullscreen ? 'object-cover' : 'object-contain max-h-full'}`}
                           style={{
                             maxWidth: '100%',
-                            maxHeight: isMobile ? '50vh' : '60vh',
-                            width: 'auto',
-                            height: 'auto',
+                            maxHeight: isFullscreen ? '100vh' : (isMobile ? '50vh' : '60vh'),
+                            width: isFullscreen ? '100vw' : 'auto',
+                            height: isFullscreen ? '100vh' : 'auto',
                             backgroundColor: '#000',
+                            objectFit: isFullscreen ? 'cover' : 'contain',
                             // Optimize for mobile performance
                             ...(isMobile && {
                               willChange: 'auto',
@@ -1092,7 +1178,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           autoPlay
                           playsInline
                           preload={isMobile ? "metadata" : "auto"}
-                          crossOrigin="anonymous"
+                          crossOrigin={null}
                           webkit-playsinline="true"
                           x5-playsinline="true"
                           x5-video-player-type="h5"
@@ -1122,6 +1208,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           }}
                           onCanPlay={() => {
                             setIsLoadingPlayback(false);
+                            setVideoError(null); // Clear any previous errors
                             if (videoRef.current) {
                               setDuration(videoRef.current.duration);
                               // Force play immediately - user already clicked play button
@@ -1129,18 +1216,31 @@ export default function MoviesAndSeriesDetailsSections(props) {
                               if (playPromise !== undefined) {
                                 playPromise.catch(err => {
                                   console.error('Play error:', err);
-                                  // On mobile, retry immediately since user already interacted
+                                  // Don't show error immediately, retry first
                                   if (isMobile) {
                                     // Retry immediately on mobile
                                     requestAnimationFrame(() => {
                                       if (videoRef.current && !videoRef.current.error) {
-                                        videoRef.current.play().catch(() => {});
+                                        videoRef.current.play().catch(() => {
+                                          // Only show error after multiple retries
+                                          setTimeout(() => {
+                                            if (videoRef.current && videoRef.current.error) {
+                                              setVideoError('Unable to play video directly. Please use an external player.');
+                                            }
+                                          }, 2000);
+                                        });
                                       }
                                     });
                                   } else {
                                     setTimeout(() => {
                                       if (videoRef.current && !videoRef.current.error) {
-                                        videoRef.current.play().catch(() => {});
+                                        videoRef.current.play().catch(() => {
+                                          setTimeout(() => {
+                                            if (videoRef.current && videoRef.current.error) {
+                                              setVideoError('Unable to play video directly. Please use an external player.');
+                                            }
+                                          }, 2000);
+                                        });
                                       }
                                     }, 200);
                                   }
@@ -1194,6 +1294,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           onPlaying={() => {
                             setIsLoadingPlayback(false);
                             setIsPlaying(true);
+                            setVideoError(null); // Clear any errors when video starts playing
                             setShowControls(true);
                             if (controlsTimeoutRef.current) {
                               clearTimeout(controlsTimeoutRef.current);
