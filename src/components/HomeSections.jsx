@@ -43,7 +43,7 @@ export default function HomeSection(props) {
   const renderRow = (rowNumber, rowData) => (
     <div 
       key={rowNumber}
-      className="relative group w-screen overflow-hidden mb-4"
+      className="relative group w-screen overflow-hidden mb-2"
       style={{ marginLeft: 'calc(-50vw + 50%)' }}
       onMouseEnter={() => setIsHovered(prev => ({ ...prev, [`row${rowNumber}`]: true }))}
       onMouseLeave={() => setIsHovered(prev => ({ ...prev, [`row${rowNumber}`]: false }))}
@@ -140,7 +140,7 @@ export default function HomeSection(props) {
       </div>
 
       {!props.isMovieDataLoading && props.movieData?.length > 0 ? (
-        <div className="space-y-2">
+        <div className="space-y-1">
           {[1, 2, 3, 4].map(rowNumber => {
             const rowData = getRowData(rowNumber);
             return rowData.length > 0 ? renderRow(rowNumber, rowData) : null;

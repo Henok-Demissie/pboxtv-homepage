@@ -1938,9 +1938,9 @@ export default function Nav() {
         transition={{ duration: 0.3, ease: "easeOut" }}
         className="fixed bottom-0 left-0 right-0 z-[9999] bg-black/90 backdrop-blur-md border-t border-gray-800/30 md:hidden shadow-[0_-4px_20px_rgba(0,0,0,0.5)]"
       >
-        <nav className="flex items-center justify-center px-3 py-3.5">
+        <nav className="flex items-center justify-center px-2 py-2.5">
           {/* Quick Links - Centered */}
-          <div className="flex items-center justify-center gap-1 overflow-x-auto scrollbar-hide min-w-0 w-full max-w-md">
+          <div className="flex items-center justify-center gap-0.5 overflow-x-auto scrollbar-hide min-w-0 w-full max-w-md">
             {mobileNavItems.map((navItem, index) => (
               navItem.external ? (
                 <motion.a
@@ -1949,7 +1949,7 @@ export default function Nav() {
                   target="_blank"
                   rel="noopener noreferrer"
                   whileTap={{ scale: 0.95 }}
-                  className="flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all duration-300 whitespace-nowrap flex-shrink-0 text-gray-400 hover:text-white hover:bg-white/5 active:scale-95"
+                  className="flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded-xl transition-all duration-300 whitespace-nowrap flex-shrink-0 text-gray-400 hover:text-white hover:bg-white/5 active:scale-95"
                 >
                   <navItem.icon className="text-lg flex-shrink-0 transition-transform duration-300" />
                   <span className="text-[10px] font-medium leading-tight">{navItem.name}</span>
@@ -1962,7 +1962,7 @@ export default function Nav() {
                 >
                   <Link
                     to={navItem.path}
-                    className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all duration-300 whitespace-nowrap relative ${
+                    className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded-xl transition-all duration-300 whitespace-nowrap relative ${
                       navStatus === navItem.name
                         ? ""
                         : "text-gray-400 hover:bg-white/5"

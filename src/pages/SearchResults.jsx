@@ -450,7 +450,7 @@ export default function SearchResults() {
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
-                className={`grid gap-4 md:gap-6 ${viewMode === "grid"
+                className={`grid gap-1 md:gap-2 ${viewMode === "grid"
                     ? "grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 3xl:grid-cols-9"
                     : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6"
                   }`}

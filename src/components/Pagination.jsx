@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   AiOutlineFastBackward,
   AiFillFastForward,
@@ -58,16 +59,31 @@ const PaginationItem = ({ page, currentPage, onPageChange, isDisabled }) => {
 };
 
 const Pagination = ({ currentPage, total, limit, onPageChange, pagesNum }) => {
+  const [goToPageValue, setGoToPageValue] = useState("");
   const pagesCount = Math.ceil(total / limit);
   const pagesCut = getPagesCut({ pagesCount, pagesCutCount: 5, currentPage });
   const pages = range(pagesCut.start, pagesCut.end);
   const isFirstPage = Number(currentPage) === 1;
   const isLastPage = Number(currentPage) === pagesCount;
 
+  const handleGoToPage = () => {
+    const pageNum = parseInt(goToPageValue);
+    if (pageNum && pageNum >= 1 && pageNum <= pagesCount) {
+      onPageChange(pageNum);
+      setGoToPageValue("");
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleGoToPage();
+    }
+  };
+
   if (pagesCount <= 1) return null;
 
   return (
-    <div className="flex justify-center items-center mt-12 mb-8 px-2 sm:px-4">
+    <div className="flex flex-col justify-center items-center mt-12 mb-8 px-2 sm:px-4 gap-3">
       <div className="flex items-center gap-1 sm:gap-2 p-1 sm:p-2 bg-gray-900/60 backdrop-blur-md rounded-xl sm:rounded-2xl border border-gray-800 shadow-2xl max-w-full overflow-hidden">
         <PaginationItem
           page={<AiOutlineFastBackward />}
@@ -105,6 +121,26 @@ const Pagination = ({ currentPage, total, limit, onPageChange, pagesNum }) => {
           onPageChange={() => onPageChange(pagesNum)}
           isDisabled={isLastPage}
         />
+      </div>
+
+      {/* Go to page input and button */}
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          min="1"
+          max={pagesCount}
+          value={goToPageValue}
+          onChange={(e) => setGoToPageValue(e.target.value)}
+          onKeyPress={handleKeyPress}
+          placeholder={`Go to page (1-${pagesCount})`}
+          className="bg-gray-800 text-white placeholder-gray-400 border border-gray-700 rounded-lg px-3 py-2 text-sm sm:text-base focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 w-40 sm:w-48 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        />
+        <button
+          onClick={handleGoToPage}
+          className="bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2 text-sm sm:text-base font-medium flex items-center gap-1 transition-colors duration-200 shadow-lg shadow-red-600/25 hover:shadow-red-600/40"
+        >
+          Go <AiOutlineArrowRight className="inline" />
+        </button>
       </div>
     </div>
   );

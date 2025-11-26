@@ -236,8 +236,8 @@ const DownloadButton = ({ movieData }) => {
   return (
     <Popover placement="bottom" showArrow={true}>
       <PopoverTrigger>
-        <button className="group uppercase flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 hover:border-red-500/50 text-white font-medium text-xs rounded-lg py-2 px-4 lg:text-sm sm:px-6 sm:max-w-[15rem] sm:py-3 transition-all duration-300 hover:scale-105">
-          <FaCloudDownloadAlt className="text-lg group-hover:scale-110 transition-transform duration-300" />
+        <button className="group uppercase flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white font-medium text-xs rounded-lg py-2 px-4 lg:text-sm sm:px-6 sm:max-w-[15rem] sm:py-3 transition-all duration-300 hover:scale-105">
+          <FaCloudDownloadAlt className="text-white text-lg group-hover:scale-110 transition-transform duration-300" />
           Download
         </button>
       </PopoverTrigger>

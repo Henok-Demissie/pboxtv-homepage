@@ -419,7 +419,7 @@ export default function MoviesAndSeriesSections(props) {
 
           <div className="w-full">
 
-            <div className="grid gap-x-2 gap-y-6 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
+            <div className="grid gap-x-2 gap-y-2 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
 
               {props.movieData.map((movie, index) => {
 

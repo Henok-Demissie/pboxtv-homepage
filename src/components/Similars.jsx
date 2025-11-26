@@ -44,7 +44,7 @@ export default function HomeSection(props) {
       <div className="w-full">
         {!props.isMovieDataLoading ? (
           <div className="relative w-full">
-            <div className="grid w-full gap-x-2 gap-y-6 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 3xl:grid-cols-8">
+            <div className="grid w-full gap-x-2 gap-y-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 3xl:grid-cols-8">
               {props.movieData.map((movie, index) => {
                 return (
                   <MovieCard key={index} movie={movie} />

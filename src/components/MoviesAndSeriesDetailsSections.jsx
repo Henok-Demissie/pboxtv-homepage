@@ -1,26 +1,57 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import "react-lazy-load-image-component/src/effects/black-and-white.css";
 import { motion, AnimatePresence } from "framer-motion";
 import { LazyLoadImage } from "react-lazy-load-image-component";
 import Swal from 'sweetalert2';
+import Plyr from 'plyr-react';
+import 'plyr/dist/plyr.css';
 
-import { BiListUl, BiPlay, BiTime, BiDownload } from "react-icons/bi";
+import { BiListUl, BiPlay, BiTime, BiDownload, BiFilm, BiPause, BiVolumeFull, BiVolumeMute, BiFullscreen, BiExitFullscreen, BiSkipNext, BiSkipPrevious } from "react-icons/bi";
 import { IoIosArrowDown, IoIosCheckmark } from "react-icons/io";
 import { FiCalendar } from "react-icons/fi";
 import { BsListStars } from "react-icons/bs";
 import { PiStarFill } from "react-icons/pi";
 import { LuLanguages } from "react-icons/lu";
-import { AiFillHeart, AiOutlineHeart } from "react-icons/ai";
+import { AiFillHeart, AiOutlineHeart, AiOutlineClose } from "react-icons/ai";
 import { getFromStorage, saveToStorage } from "../utils/helpers";
 import TelegramButton from "./TelegramButtons";
 import DownloadButton from "./Buttons";
 import VLCStreamButton from "./VLCStreamButton";
+import TrailerModal from "./TrailerModal";
 
 export default function MoviesAndSeriesDetailsSections(props) {
   const [isSeasonsOpen, setIsSeasonspOpen] = useState(false);
   const [isLoadingPlayback, setIsLoadingPlayback] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [isTrailerModalOpen, setIsTrailerModalOpen] = useState(false);
+  const [isPlayingMovie, setIsPlayingMovie] = useState(false);
+  const [selectedSource, setSelectedSource] = useState(null);
+  const [videoUrl, setVideoUrl] = useState(null);
+  const [videoError, setVideoError] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [showControls, setShowControls] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+  const videoRef = useRef(null);
+  const containerRef = useRef(null);
+  const controlsTimeoutRef = useRef(null);
+
+  // Check if mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Check if movie is in favorites
   useEffect(() => {
@@ -93,6 +124,189 @@ export default function MoviesAndSeriesDetailsSections(props) {
     
     // Dispatch custom event for cross-component updates
     window.dispatchEvent(new CustomEvent('favoritesUpdated'));
+  };
+
+  const handleTrailerClick = () => {
+    setIsTrailerModalOpen(true);
+  };
+
+  const loadVideoUrl = async (source) => {
+    setIsLoadingPlayback(true);
+    setVideoError(null);
+    setShowControls(true);
+    try {
+      const downloadUrl = generateDownloadUrl(source.id, source.name);
+      const shortUrl = await shortenUrl(downloadUrl);
+      setVideoUrl(shortUrl);
+      setIsPlayingMovie(true);
+      // Keep loading state true, video events will handle it
+    } catch (err) {
+      console.error('Error loading video:', err);
+      setIsLoadingPlayback(false);
+      Swal.fire({
+        title: 'Error',
+        text: 'Unable to load video. Please try again.',
+        icon: 'error',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#e11d48',
+        background: '#1f2937',
+        color: '#ffffff'
+      });
+    }
+  };
+
+  const stopPlaying = () => {
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
+    setIsPlayingMovie(false);
+    setVideoUrl(null);
+    setSelectedSource(null);
+    setVideoError(null);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setShowControls(true);
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+  };
+
+  const formatTime = (seconds) => {
+    if (isNaN(seconds) || !isFinite(seconds) || seconds < 0) return '0:00';
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    if (hours > 0) {
+      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Fullscreen handlers
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement));
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = () => {
+    const element = containerRef.current || videoRef.current;
+    if (!element) return;
+
+    if (!isFullscreen) {
+      if (element.requestFullscreen) {
+        element.requestFullscreen();
+      } else if (element.webkitRequestFullscreen) {
+        element.webkitRequestFullscreen();
+      } else if (element.mozRequestFullScreen) {
+        element.mozRequestFullScreen();
+      } else if (element.msRequestFullscreen) {
+        element.msRequestFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.mozCancelFullScreen) {
+        document.mozCancelFullScreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+      }
+    }
+  };
+
+  const toggleMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+    }
+  };
+
+  const handleVolumeChange = (e) => {
+    const newVolume = parseFloat(e.target.value);
+    setVolume(newVolume);
+    if (videoRef.current) {
+      videoRef.current.volume = newVolume;
+      setIsMuted(newVolume === 0);
+    }
+  };
+
+  const skipForward = () => {
+    if (videoRef.current) {
+      const newTime = Math.min(videoRef.current.currentTime + 10, videoRef.current.duration || Infinity);
+      videoRef.current.currentTime = newTime;
+      setCurrentTime(newTime);
+    }
+  };
+
+  const skipBackward = () => {
+    if (videoRef.current) {
+      const newTime = Math.max(videoRef.current.currentTime - 10, 0);
+      videoRef.current.currentTime = newTime;
+      setCurrentTime(newTime);
+    }
+  };
+
+  const togglePlayPause = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const handleVideoError = (e) => {
+    console.error('Video error:', e);
+    setIsLoadingPlayback(false);
+    // Try to reload the video once
+    if (videoRef.current && videoUrl) {
+      setTimeout(() => {
+        if (videoRef.current && videoRef.current.error) {
+          // Retry loading the video
+          videoRef.current.load();
+          videoRef.current.play().catch(() => {
+            // If still fails, show error
+            setVideoError('Unable to play video directly. Please use an external player.');
+          });
+        }
+      }, 1000);
+    } else {
+      setVideoError('Unable to play video directly. Please use an external player.');
+    }
+  };
+
+  const openInVLC = async () => {
+    if (!selectedSource) return;
+    await openWithVLC(selectedSource);
+  };
+
+  const openInNewTab = () => {
+    if (videoUrl) {
+      window.open(videoUrl, '_blank', 'noopener noreferrer');
+    }
+  };
+
+  const downloadVideo = async () => {
+    if (!selectedSource) return;
+    await downloadFile(selectedSource);
   };
 
   const BASE = import.meta.env.VITE_BASE_URL;
@@ -317,7 +531,8 @@ export default function MoviesAndSeriesDetailsSections(props) {
     if (selectedQuality) {
       props.setSeasonNumber(selectedSeason.season_number);
       props.setEpisodeNumber(selectedEpisode.episode_number);
-      await tryDirectPlay(selectedQuality, `${props.movieData.title} S${selectedSeason.season_number}E${selectedEpisode.episode_number}`);
+      setSelectedSource(selectedQuality);
+      await loadVideoUrl(selectedQuality);
     }
   };
 
@@ -559,13 +774,51 @@ export default function MoviesAndSeriesDetailsSections(props) {
       return;
     }
 
-    const bestQuality = sources.sort((a, b) => {
-      const aSize = parseInt(a.quality.replace("p", ""), 10);
-      const bSize = parseInt(b.quality.replace("p", ""), 10);
-      return bSize - aSize;
-    })[0];
+    // On mobile, auto-play the first/best quality without showing dialog
+    if (isMobile) {
+      // Prefer higher quality sources, but play first available
+      const bestSource = sources[0]; // Already sorted by quality preference
+      setSelectedSource(bestSource);
+      await loadVideoUrl(bestSource);
+      return;
+    }
 
-    await tryDirectPlay(bestQuality, props.movieData.title);
+    // If multiple qualities, let user choose (desktop only)
+    if (sources.length > 1) {
+      const { value: qualityChoice } = await Swal.fire({
+        title: 'Select Quality',
+        input: 'select',
+        inputOptions: sources.reduce((acc, source) => {
+          acc[source.quality] = source.quality;
+          return acc;
+        }, {}),
+        inputPlaceholder: 'Choose quality',
+        showCancelButton: true,
+        confirmButtonText: 'Play',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#e11d48',
+        cancelButtonColor: '#6b7280',
+        background: '#1f2937',
+        color: '#ffffff',
+        inputValidator: (value) => {
+          if (!value) {
+            return 'Please select a quality';
+          }
+        }
+      });
+
+      if (!qualityChoice) {
+        return;
+      }
+
+      const selectedSource = sources.find(s => s.quality === qualityChoice);
+      setSelectedSource(selectedSource);
+      await loadVideoUrl(selectedSource);
+    } else {
+      // Single quality, play directly
+      setSelectedSource(sources[0]);
+      await loadVideoUrl(sources[0]);
+    }
   };
 
   const handleEpisodeClick = async (episode) => {
@@ -585,13 +838,42 @@ export default function MoviesAndSeriesDetailsSections(props) {
       return;
     }
 
-    const bestQuality = sources.sort((a, b) => {
-      const aSize = parseInt(a.quality.replace("p", ""), 10);
-      const bSize = parseInt(b.quality.replace("p", ""), 10);
-      return bSize - aSize;
-    })[0];
+    // If multiple qualities, let user choose
+    if (sources.length > 1) {
+      const { value: qualityChoice } = await Swal.fire({
+        title: 'Select Quality',
+        input: 'select',
+        inputOptions: sources.reduce((acc, source) => {
+          acc[source.quality] = source.quality;
+          return acc;
+        }, {}),
+        inputPlaceholder: 'Choose quality',
+        showCancelButton: true,
+        confirmButtonText: 'Play',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#e11d48',
+        cancelButtonColor: '#6b7280',
+        background: '#1f2937',
+        color: '#ffffff',
+        inputValidator: (value) => {
+          if (!value) {
+            return 'Please select a quality';
+          }
+        }
+      });
 
-    await tryDirectPlay(bestQuality, `${props.movieData.title} S${props.seasonNumber}E${episode.episode_number}`);
+      if (!qualityChoice) {
+        return;
+      }
+
+      const selectedSource = sources.find(s => s.quality === qualityChoice);
+      setSelectedSource(selectedSource);
+      await loadVideoUrl(selectedSource);
+    } else {
+      // Single quality, play directly
+      setSelectedSource(sources[0]);
+      await loadVideoUrl(sources[0]);
+    }
   };
 
   return (
@@ -600,30 +882,412 @@ export default function MoviesAndSeriesDetailsSections(props) {
         <>
           <div className="grid lg:grid-cols-2 content-center items-center gap-6 lg:gap-8">
             <div
-              onClick={handlePlayClick}
-              className="aspect-video w-full relative flex items-center shrink-0 bg-gradient-to-br from-gray-700/20 to-gray-900/40 rounded-2xl cursor-pointer transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-xl hover:shadow-white/20 group overflow-hidden"
+              className="w-full relative shrink-0 bg-black rounded-2xl overflow-hidden"
+              style={isMobile ? {
+                aspectRatio: '16/9',
+                maxHeight: '50vh',
+                minHeight: '200px'
+              } : {
+                aspectRatio: '16/9',
+                maxHeight: '60vh',
+                minHeight: '300px'
+              }}
             >
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
+              {/* Favorite Button - Upper Right Corner */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFavorite();
+                }}
+                className="absolute top-3 right-3 z-30 p-2.5 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:border-red-500/50 text-white transition-all duration-300 hover:scale-110 hover:bg-black/80 shadow-lg"
+                title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+              >
+                {isFavorite ? (
+                  <AiFillHeart className="text-red-500 text-xl sm:text-2xl" />
+                ) : (
+                  <AiOutlineHeart className="text-red-400 text-xl sm:text-2xl" />
+                )}
+              </button>
 
-              <div className="absolute z-20 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-white/20 rounded-full animate-pulse"></div>
-                  <div className="absolute inset-0 bg-white/15 rounded-full animate-ping"></div>
-                  <button
-                    disabled={isLoadingPlayback}
-                    className={`relative bg-white/10 hover:bg-white/20 backdrop-blur-lg text-white rounded-full p-3 sm:p-4 text-2xl sm:text-3xl lg:text-4xl transition-all duration-300 hover:scale-105 shadow-lg shadow-black/20 hover:shadow-xl hover:shadow-black/30 border border-white/20 hover:border-white/30 ${isLoadingPlayback ? 'opacity-50 cursor-not-allowed' : ''}`}
+              {/* Video Player - Show when playing */}
+              {isPlayingMovie && videoUrl ? (
+                <>
+                  {videoError ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 z-20 p-6">
+                      <div className="text-center text-white mb-4 max-w-md">
+                        <p className="text-lg font-semibold mb-2">{videoError}</p>
+                        <p className="text-sm text-gray-400 mb-6">Try one of these options:</p>
+                        <div className="flex flex-wrap gap-3 justify-center">
+                          <button
+                            onClick={openInVLC}
+                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium text-sm"
+                          >
+                            Open in VLC
+                          </button>
+                          <button
+                            onClick={openInNewTab}
+                            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium text-sm"
+                          >
+                            Open in New Tab
+                          </button>
+                          <button
+                            onClick={downloadVideo}
+                            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium text-sm"
+                          >
+                            Download
+                          </button>
+                          <button
+                            onClick={stopPlaying}
+                            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors font-medium text-sm"
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div 
+                        ref={containerRef} 
+                        className="relative w-full h-full flex items-center justify-center bg-black"
+                        style={isMobile ? {
+                          minHeight: '200px',
+                          maxHeight: '50vh',
+                          width: '100%'
+                        } : {
+                          minHeight: '300px',
+                          maxHeight: '60vh',
+                          width: '100%'
+                        }}
+                        onTouchStart={() => {
+                          setShowControls(true);
+                          if (controlsTimeoutRef.current) {
+                            clearTimeout(controlsTimeoutRef.current);
+                          }
+                          controlsTimeoutRef.current = setTimeout(() => {
+                            if (isPlaying) {
+                              setShowControls(false);
+                            }
+                          }, 4000);
+                        }}
+                        onMouseMove={() => {
+                          setShowControls(true);
+                          if (controlsTimeoutRef.current) {
+                            clearTimeout(controlsTimeoutRef.current);
+                          }
+                          controlsTimeoutRef.current = setTimeout(() => {
+                            if (isPlaying) {
+                              setShowControls(false);
+                            }
+                          }, 3000);
+                        }}
+                      >
+                        <video
+                          ref={videoRef}
+                          className="w-full h-full max-h-full object-contain"
+                          style={{
+                            maxWidth: '100%',
+                            maxHeight: isMobile ? '50vh' : '60vh',
+                            width: 'auto',
+                            height: 'auto',
+                            backgroundColor: '#000'
+                          }}
+                          src={videoUrl}
+                          poster={props.movieData.backdrop}
+                          autoPlay
+                          playsInline
+                          preload="auto"
+                          crossOrigin="anonymous"
+                          webkit-playsinline="true"
+                          x5-playsinline="true"
+                          x5-video-player-type="h5"
+                          x5-video-player-fullscreen="true"
+                          onEnded={stopPlaying}
+                          onError={handleVideoError}
+                          onLoadedMetadata={() => {
+                            setIsLoadingPlayback(false);
+                            if (videoRef.current) {
+                              setDuration(videoRef.current.duration);
+                            }
+                          }}
+                          onCanPlay={() => {
+                            setIsLoadingPlayback(false);
+                            if (videoRef.current) {
+                              setDuration(videoRef.current.duration);
+                              videoRef.current.play().catch(err => {
+                                console.error('Play error:', err);
+                                setTimeout(() => {
+                                  if (videoRef.current && !videoRef.current.error) {
+                                    videoRef.current.play().catch(() => {});
+                                  }
+                                }, 500);
+                              });
+                            }
+                          }}
+                          onLoadedData={() => {
+                            setIsLoadingPlayback(false);
+                            if (videoRef.current) {
+                              setDuration(videoRef.current.duration);
+                              if (videoRef.current.paused) {
+                                videoRef.current.play().catch(() => {});
+                              }
+                            }
+                          }}
+                          onWaiting={() => {
+                            setIsLoadingPlayback(true);
+                          }}
+                          onPlaying={() => {
+                            setIsLoadingPlayback(false);
+                            setIsPlaying(true);
+                            setShowControls(true);
+                            if (controlsTimeoutRef.current) {
+                              clearTimeout(controlsTimeoutRef.current);
+                            }
+                            controlsTimeoutRef.current = setTimeout(() => {
+                              setShowControls(false);
+                            }, 3000);
+                          }}
+                          onPause={() => {
+                            setIsPlaying(false);
+                            setShowControls(true);
+                            if (controlsTimeoutRef.current) {
+                              clearTimeout(controlsTimeoutRef.current);
+                            }
+                          }}
+                          onTimeUpdate={() => {
+                            if (videoRef.current) {
+                              setCurrentTime(videoRef.current.currentTime);
+                              if (!duration || isNaN(duration)) {
+                                setDuration(videoRef.current.duration);
+                              }
+                            }
+                          }}
+                        />
+                        
+                        {/* Custom Controls Overlay */}
+                        <div 
+                          className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 z-20 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
+                          onTouchStart={(e) => {
+                            e.stopPropagation();
+                            setShowControls(true);
+                            if (controlsTimeoutRef.current) {
+                              clearTimeout(controlsTimeoutRef.current);
+                            }
+                            controlsTimeoutRef.current = setTimeout(() => {
+                              if (isPlaying) {
+                                setShowControls(false);
+                              }
+                            }, 4000);
+                          }}
+                        >
+                          {/* Progress Bar with Time Display */}
+                          <div className="flex items-center gap-2 mb-3">
+                            <input
+                              type="range"
+                              min="0"
+                              max={duration || 100}
+                              value={currentTime || 0}
+                              onChange={(e) => {
+                                if (videoRef.current) {
+                                  const newTime = parseFloat(e.target.value);
+                                  videoRef.current.currentTime = newTime;
+                                  setCurrentTime(newTime);
+                                }
+                              }}
+                              onTouchStart={(e) => {
+                                e.stopPropagation();
+                                setShowControls(true);
+                              }}
+                              className="flex-1 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-red-600 touch-manipulation"
+                              style={{
+                                background: `linear-gradient(to right, #dc2626 0%, #dc2626 ${duration ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.2) ${duration ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.2) 100%)`,
+                                WebkitTapHighlightColor: 'transparent'
+                              }}
+                            />
+                            {/* Time Display */}
+                            <span className="text-white text-sm font-medium min-w-[100px] text-right">
+                              {formatTime(currentTime)} / {formatTime(duration)}
+                            </span>
+                          </div>
+                          
+                          {/* Control Buttons */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              {/* Play/Pause */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  togglePlayPause();
+                                }}
+                                onTouchStart={(e) => {
+                                  e.stopPropagation();
+                                  setShowControls(true);
+                                }}
+                                className="text-white hover:text-red-400 active:text-red-500 transition-colors p-2 touch-manipulation"
+                                title={isPlaying ? "Pause" : "Play"}
+                                style={{ WebkitTapHighlightColor: 'transparent' }}
+                              >
+                                {isPlaying ? <BiPause size={24} /> : <BiPlay size={24} />}
+                              </button>
+
+                              {/* Skip Backward 10s */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  skipBackward();
+                                }}
+                                onTouchStart={(e) => {
+                                  e.stopPropagation();
+                                  setShowControls(true);
+                                }}
+                                className="text-white hover:text-red-400 active:text-red-500 transition-colors p-2 touch-manipulation"
+                                title="Rewind 10 seconds"
+                                style={{ WebkitTapHighlightColor: 'transparent' }}
+                              >
+                                <BiSkipPrevious size={24} />
+                              </button>
+
+                              {/* Skip Forward 10s */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  skipForward();
+                                }}
+                                onTouchStart={(e) => {
+                                  e.stopPropagation();
+                                  setShowControls(true);
+                                }}
+                                className="text-white hover:text-red-400 active:text-red-500 transition-colors p-2 touch-manipulation"
+                                title="Forward 10 seconds"
+                                style={{ WebkitTapHighlightColor: 'transparent' }}
+                              >
+                                <BiSkipNext size={24} />
+                              </button>
+
+                              {/* Volume Control */}
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleMute();
+                                  }}
+                                  onTouchStart={(e) => {
+                                    e.stopPropagation();
+                                    setShowControls(true);
+                                  }}
+                                  className="text-white hover:text-red-400 active:text-red-500 transition-colors p-2 touch-manipulation"
+                                  title={isMuted ? "Unmute" : "Mute"}
+                                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                                >
+                                  {isMuted ? <BiVolumeMute size={20} /> : <BiVolumeFull size={20} />}
+                                </button>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="1"
+                                  step="0.01"
+                                  value={isMuted ? 0 : volume}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    handleVolumeChange(e);
+                                  }}
+                                  onTouchStart={(e) => {
+                                    e.stopPropagation();
+                                    setShowControls(true);
+                                  }}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="w-20 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-red-600 touch-manipulation"
+                                  style={{
+                                    background: `linear-gradient(to right, #dc2626 0%, #dc2626 ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.2) ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.2) 100%)`,
+                                    WebkitTapHighlightColor: 'transparent'
+                                  }}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {/* Fullscreen */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleFullscreen();
+                                }}
+                                onTouchStart={(e) => {
+                                  e.stopPropagation();
+                                  setShowControls(true);
+                                }}
+                                className="text-white hover:text-red-400 active:text-red-500 transition-colors p-2 touch-manipulation"
+                                title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                                style={{ WebkitTapHighlightColor: 'transparent' }}
+                              >
+                                {isFullscreen ? <BiExitFullscreen size={20} /> : <BiFullscreen size={20} />}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {isLoadingPlayback && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
+                            <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Stop Button */}
+                      <button
+                        onClick={stopPlaying}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        className="absolute top-3 left-3 z-30 p-2 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:border-red-500/50 active:border-red-500 text-white transition-all duration-300 hover:scale-110 active:scale-105 hover:bg-black/80 shadow-lg touch-manipulation"
+                        title="Stop playing"
+                        style={{ WebkitTapHighlightColor: 'transparent' }}
+                      >
+                        <AiOutlineClose className="text-white text-lg" />
+                      </button>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Play Button Overlay - Show when not playing */}
+                  <div
+                    onClick={handlePlayClick}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                      handlePlayClick();
+                    }}
+                    className="absolute inset-0 cursor-pointer transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-xl hover:shadow-white/20 group bg-gradient-to-br from-gray-700/20 to-gray-900/40 touch-manipulation"
+                    style={{ WebkitTapHighlightColor: 'transparent' }}
                   >
-                    <BiPlay className="ml-0.5" />
-                  </button>
-                </div>
-              </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
 
-              <LazyLoadImage
-                src={props.movieData.backdrop}
-                effect="black-and-white"
-                alt={props.movieData.title}
-                className="aspect-video w-full rounded-2xl shrink-0 object-cover"
-              />
+                    <div className="absolute z-20 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-white/20 rounded-full animate-pulse"></div>
+                        <div className="absolute inset-0 bg-white/15 rounded-full animate-ping"></div>
+                        <button
+                          disabled={isLoadingPlayback}
+                          className={`relative bg-white/10 hover:bg-white/20 backdrop-blur-lg text-white rounded-full p-3 sm:p-4 text-2xl sm:text-3xl lg:text-4xl transition-all duration-300 hover:scale-105 shadow-lg shadow-black/20 hover:shadow-xl hover:shadow-black/30 border border-white/20 hover:border-white/30 ${isLoadingPlayback ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <BiPlay className="ml-0.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <LazyLoadImage
+                      src={props.movieData.backdrop}
+                      effect="black-and-white"
+                      alt={props.movieData.title}
+                      className="w-full h-full rounded-2xl shrink-0 object-cover"
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover'
+                      }}
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="space-y-4 sm:p-2">
@@ -697,24 +1361,18 @@ export default function MoviesAndSeriesDetailsSections(props) {
                   </div>
                 )}
 
-                {/* Favorite Heart Button */}
+                {/* Trailer Button - Inline with rating */}
                 <button
-                  onClick={toggleFavorite}
-                  className="flex items-center gap-2 p-2 rounded-lg bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 hover:border-red-500/50 transition-all duration-300 hover:scale-105"
-                  title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+                  onClick={handleTrailerClick}
+                  className="group flex items-center justify-center gap-1.5 bg-transparent border-2 border-red-600 text-white font-medium text-xs rounded-lg py-1.5 px-3 hover:bg-red-600/10 hover:border-red-500 transition-all duration-300 hover:scale-105"
                 >
-                  {isFavorite ? (
-                    <AiFillHeart className="text-red-500 text-xl" />
-                  ) : (
-                    <AiOutlineHeart className="text-red-400 text-xl" />
-                  )}
-                  <span className="text-white text-sm xl:text-base font-medium">
-                    {isFavorite ? "Favorited" : "Add to Favorites"}
-                  </span>
+                  <BiFilm className="text-red-600 text-base group-hover:scale-110 transition-transform duration-300" />
+                  <span>Trailer</span>
                 </button>
               </div>
 
-              <div className="flex items-center flex-wrap gap-3">
+              {/* Action Buttons Section - All on same line */}
+              <div className="flex items-center flex-wrap gap-3 mt-4">
                 <TelegramButton movieData={props.movieData} />
                 <DownloadButton movieData={props.movieData} />
                 <VLCStreamButton movieData={props.movieData} />
@@ -834,6 +1492,14 @@ export default function MoviesAndSeriesDetailsSections(props) {
           <div className="loader"></div>
         </div>
       )}
+
+      {/* Trailer Modal */}
+      <TrailerModal
+        isOpen={isTrailerModalOpen}
+        onClose={() => setIsTrailerModalOpen(false)}
+        movieTitle={props.movieData?.title}
+        releaseYear={props.movieData?.release_year}
+      />
     </div>
   );
 }
