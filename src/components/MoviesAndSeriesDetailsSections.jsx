@@ -134,21 +134,32 @@ export default function MoviesAndSeriesDetailsSections(props) {
     setIsLoadingPlayback(true);
     setVideoError(null);
     setShowControls(true);
+    
+    // On mobile, clear any previous video state for smoother loading
+    if (isMobile && videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.src = '';
+      videoRef.current.load();
+    }
+    
     try {
       const downloadUrl = generateDownloadUrl(source.id, source.name);
-      const shortUrl = await shortenUrl(downloadUrl);
+      // On mobile, skip URL shortening for faster loading
+      const shortUrl = isMobile ? downloadUrl : await shortenUrl(downloadUrl);
       setVideoUrl(shortUrl);
       setIsPlayingMovie(true);
       
-      // On mobile, ensure video plays immediately after URL is set
+      // On mobile, set video properties for smooth playback
       if (isMobile && videoRef.current) {
+        // Wait for video element to be ready
         setTimeout(() => {
-          if (videoRef.current && videoRef.current.readyState >= 2) {
-            videoRef.current.play().catch(() => {
-              // Will play on next user interaction
-            });
+          if (videoRef.current) {
+            // Set optimal buffering settings
+            videoRef.current.preload = 'metadata';
+            // Ensure smooth playback
+            videoRef.current.playbackRate = 1;
           }
-        }, 100);
+        }, 50);
       }
       // Keep loading state true, video events will handle it
     } catch (err) {
@@ -951,7 +962,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
   };
 
   return (
-    <div className="relative mt-20 bg-gradient-to-br from-gray-900/30 via-gray-800/20 to-black/50 backdrop-blur-sm border border-white/20 p-4 md:p-8 lg:p-10 rounded-2xl shadow-2xl">
+    <div className="relative mt-4 sm:mt-6 md:mt-8 bg-gradient-to-br from-gray-900/30 via-gray-800/20 to-black/50 backdrop-blur-sm border border-white/20 p-4 md:p-8 lg:p-10 rounded-2xl shadow-2xl">
       {!props.isMovieDataLoading ? (
         <>
           <div className="grid lg:grid-cols-2 content-center items-center gap-6 lg:gap-8">
@@ -1064,13 +1075,23 @@ export default function MoviesAndSeriesDetailsSections(props) {
                             maxHeight: isMobile ? '50vh' : '60vh',
                             width: 'auto',
                             height: 'auto',
-                            backgroundColor: '#000'
+                            backgroundColor: '#000',
+                            // Optimize for mobile performance
+                            ...(isMobile && {
+                              willChange: 'auto',
+                              transform: 'translateZ(0)',
+                              WebkitTransform: 'translateZ(0)',
+                              backfaceVisibility: 'hidden',
+                              WebkitBackfaceVisibility: 'hidden',
+                              perspective: '1000px',
+                              WebkitPerspective: '1000px'
+                            })
                           }}
                           src={videoUrl}
                           poster={props.movieData.backdrop}
                           autoPlay
                           playsInline
-                          preload="auto"
+                          preload={isMobile ? "metadata" : "auto"}
                           crossOrigin="anonymous"
                           webkit-playsinline="true"
                           x5-playsinline="true"
@@ -1078,58 +1099,97 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           x5-video-player-fullscreen="true"
                           x5-video-orientation="portrait"
                           controls={false}
+                          muted={false}
+                          loop={false}
+                          disablePictureInPicture={true}
+                          disableRemotePlayback={true}
                           onEnded={stopPlaying}
                           onError={handleVideoError}
+                          onLoadStart={() => {
+                            // Start loading indicator immediately
+                            setIsLoadingPlayback(true);
+                          }}
                           onLoadedMetadata={() => {
-                            setIsLoadingPlayback(false);
                             if (videoRef.current) {
                               setDuration(videoRef.current.duration);
+                              // On mobile, try to play immediately after metadata loads
+                              if (isMobile && videoRef.current.readyState >= 1) {
+                                videoRef.current.play().catch(() => {
+                                  // Will play on canplay event
+                                });
+                              }
                             }
                           }}
                           onCanPlay={() => {
                             setIsLoadingPlayback(false);
                             if (videoRef.current) {
                               setDuration(videoRef.current.duration);
-                              // Force play - user already clicked play button
+                              // Force play immediately - user already clicked play button
                               const playPromise = videoRef.current.play();
                               if (playPromise !== undefined) {
                                 playPromise.catch(err => {
                                   console.error('Play error:', err);
-                                  // On mobile, retry quickly since user already interacted
+                                  // On mobile, retry immediately since user already interacted
                                   if (isMobile) {
-                                    setTimeout(() => {
+                                    // Retry immediately on mobile
+                                    requestAnimationFrame(() => {
                                       if (videoRef.current && !videoRef.current.error) {
                                         videoRef.current.play().catch(() => {});
                                       }
-                                    }, 300);
+                                    });
                                   } else {
                                     setTimeout(() => {
                                       if (videoRef.current && !videoRef.current.error) {
                                         videoRef.current.play().catch(() => {});
                                       }
-                                    }, 500);
+                                    }, 200);
                                   }
                                 });
                               }
                             }
                           }}
+                          onCanPlayThrough={() => {
+                            // Video can play through without buffering
+                            setIsLoadingPlayback(false);
+                          }}
                           onLoadedData={() => {
                             setIsLoadingPlayback(false);
                             if (videoRef.current) {
                               setDuration(videoRef.current.duration);
-                              if (videoRef.current.paused) {
-                                // Force play on mobile
-                                const playPromise = videoRef.current.play();
-                                if (playPromise !== undefined) {
-                                  playPromise.catch(() => {
-                                    // Silent fail, will retry on user interaction
-                                  });
-                                }
+                              // On mobile, ensure play if still paused
+                              if (isMobile && videoRef.current.paused && videoRef.current.readyState >= 2) {
+                                videoRef.current.play().catch(() => {});
                               }
                             }
                           }}
                           onWaiting={() => {
+                            // Show loading when buffering
                             setIsLoadingPlayback(true);
+                            // On mobile, try to improve buffering by reducing playback rate temporarily
+                            if (isMobile && videoRef.current && !videoRef.current.paused) {
+                              const currentRate = videoRef.current.playbackRate;
+                              if (currentRate === 1) {
+                                // Slightly reduce rate to help buffer catch up
+                                videoRef.current.playbackRate = 0.95;
+                                setTimeout(() => {
+                                  if (videoRef.current && !videoRef.current.paused) {
+                                    videoRef.current.playbackRate = 1;
+                                  }
+                                }, 1000);
+                              }
+                            }
+                          }}
+                          onProgress={() => {
+                            // Hide loading when enough data is buffered
+                            if (videoRef.current && videoRef.current.buffered.length > 0) {
+                              const bufferedEnd = videoRef.current.buffered.end(0);
+                              const currentTime = videoRef.current.currentTime;
+                              // On mobile, require more buffer (5 seconds) for smoother playback
+                              const bufferThreshold = isMobile ? 5 : 3;
+                              if (bufferedEnd - currentTime > bufferThreshold) {
+                                setIsLoadingPlayback(false);
+                              }
+                            }
                           }}
                           onPlaying={() => {
                             setIsLoadingPlayback(false);
@@ -1138,9 +1198,45 @@ export default function MoviesAndSeriesDetailsSections(props) {
                             if (controlsTimeoutRef.current) {
                               clearTimeout(controlsTimeoutRef.current);
                             }
+                            // On mobile, show controls longer
                             controlsTimeoutRef.current = setTimeout(() => {
-                              setShowControls(false);
-                            }, 3000);
+                              if (isPlaying) {
+                                setShowControls(false);
+                              }
+                            }, isMobile ? 5000 : 3000);
+                          }}
+                          onStalled={() => {
+                            // Video stalled, show loading
+                            setIsLoadingPlayback(true);
+                            // On mobile, try to recover from stall
+                            if (isMobile && videoRef.current) {
+                              setTimeout(() => {
+                                if (videoRef.current && videoRef.current.readyState < 4) {
+                                  // Try to reload the video source
+                                  const currentSrc = videoRef.current.src;
+                                  const currentTime = videoRef.current.currentTime;
+                                  videoRef.current.load();
+                                  videoRef.current.addEventListener('loadeddata', () => {
+                                    if (videoRef.current) {
+                                      videoRef.current.currentTime = currentTime;
+                                      videoRef.current.play().catch(() => {});
+                                    }
+                                  }, { once: true });
+                                }
+                              }, 2000);
+                            }
+                          }}
+                          onSuspend={() => {
+                            // Loading suspended, might be buffering
+                            if (videoRef.current && videoRef.current.readyState < 3) {
+                              setIsLoadingPlayback(true);
+                            }
+                          }}
+                          onRateChange={() => {
+                            // Ensure playback rate is correct
+                            if (videoRef.current && videoRef.current.playbackRate !== 1 && !isLoadingPlayback) {
+                              videoRef.current.playbackRate = 1;
+                            }
                           }}
                           onPause={() => {
                             setIsPlaying(false);
