@@ -10,6 +10,7 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
   const [isMobile, setIsMobile] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef(null);
+  const iframeRef = useRef(null);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -25,7 +26,14 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
   // Handle fullscreen changes
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement));
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement || 
+        document.webkitFullscreenElement || 
+        document.mozFullScreenElement || 
+        document.msFullscreenElement ||
+        document.webkitCurrentFullScreenElement
+      );
+      setIsFullscreen(isCurrentlyFullscreen);
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -41,44 +49,107 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
     };
   }, []);
 
-  const toggleFullscreen = () => {
+  const toggleFullscreen = async () => {
     if (!containerRef.current) return;
 
-    const element = containerRef.current;
+    const container = containerRef.current;
+    const iframe = iframeRef.current;
 
     if (!isFullscreen) {
-      // Enter fullscreen - try native API first, then fallback to CSS fullscreen
-      if (element.requestFullscreen) {
-        element.requestFullscreen().catch(err => {
-          console.log('Fullscreen API error, using CSS fallback:', err);
+      // Enter fullscreen
+      try {
+        // Try to fullscreen the iframe first (works better for YouTube)
+        if (iframe) {
+          if (iframe.requestFullscreen) {
+            await iframe.requestFullscreen();
+            return;
+          } else if (iframe.webkitRequestFullscreen) {
+            await iframe.webkitRequestFullscreen();
+            return;
+          } else if (iframe.mozRequestFullScreen) {
+            await iframe.mozRequestFullScreen();
+            return;
+          } else if (iframe.msRequestFullscreen) {
+            await iframe.msRequestFullscreen();
+            return;
+          }
+        }
+
+        // Fallback: Try to fullscreen the container
+        if (container.requestFullscreen) {
+          await container.requestFullscreen();
+        } else if (container.webkitRequestFullscreen) {
+          await container.webkitRequestFullscreen();
+        } else if (container.mozRequestFullScreen) {
+          await container.mozRequestFullScreen();
+        } else if (container.msRequestFullscreen) {
+          await container.msRequestFullscreen();
+        } else {
+          // CSS fallback for browsers that don't support fullscreen API
+          container.style.position = 'fixed';
+          container.style.top = '0';
+          container.style.left = '0';
+          container.style.width = '100vw';
+          container.style.height = '100vh';
+          container.style.zIndex = '9999';
+          container.style.paddingBottom = '0';
+          container.style.minHeight = '100vh';
           setIsFullscreen(true);
-        });
-      } else if (element.webkitRequestFullscreen) {
-        element.webkitRequestFullscreen().catch(() => setIsFullscreen(true));
-      } else if (element.mozRequestFullScreen) {
-        element.mozRequestFullScreen().catch(() => setIsFullscreen(true));
-      } else if (element.msRequestFullscreen) {
-        element.msRequestFullscreen().catch(() => setIsFullscreen(true));
-      } else {
-        // Fallback: Use CSS-based fullscreen for mobile
-        setIsFullscreen(true);
+        }
+      } catch (err) {
+        console.error('Fullscreen error:', err);
+        // CSS fallback
+        if (container) {
+          container.style.position = 'fixed';
+          container.style.top = '0';
+          container.style.left = '0';
+          container.style.width = '100vw';
+          container.style.height = '100vh';
+          container.style.zIndex = '9999';
+          container.style.paddingBottom = '0';
+          container.style.minHeight = '100vh';
+          setIsFullscreen(true);
+        }
       }
     } else {
       // Exit fullscreen
-      if (document.exitFullscreen) {
-        document.exitFullscreen().catch(err => {
-          console.log('Exit fullscreen error:', err);
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          await document.webkitExitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+          await document.mozCancelFullScreen();
+        } else if (document.msExitFullscreen) {
+          await document.msExitFullscreen();
+        } else {
+          // CSS fallback: Reset styles
+          if (container) {
+            container.style.position = '';
+            container.style.top = '';
+            container.style.left = '';
+            container.style.width = '';
+            container.style.height = '';
+            container.style.zIndex = '';
+            container.style.paddingBottom = '';
+            container.style.minHeight = '';
+            setIsFullscreen(false);
+          }
+        }
+      } catch (err) {
+        console.error('Exit fullscreen error:', err);
+        // CSS fallback: Reset styles
+        if (container) {
+          container.style.position = '';
+          container.style.top = '';
+          container.style.left = '';
+          container.style.width = '';
+          container.style.height = '';
+          container.style.zIndex = '';
+          container.style.paddingBottom = '';
+          container.style.minHeight = '';
           setIsFullscreen(false);
-        });
-      } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
-      } else if (document.mozCancelFullScreen) {
-        document.mozCancelFullScreen();
-      } else if (document.msExitFullscreen) {
-        document.msExitFullscreen();
-      } else {
-        // Fallback: Use CSS-based fullscreen
-        setIsFullscreen(false);
+        }
       }
     }
   };
@@ -349,13 +420,23 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
             <ModalBody className="!pb-2 sm:!pb-4">
               <div 
                 ref={containerRef}
-                className="relative w-full bg-black rounded-lg overflow-hidden"
-                style={{ 
-                  paddingBottom: isMobile ? '56.25%' : '70%', // 16:9 on mobile, taller on desktop
-                  minHeight: isMobile ? '200px' : '400px', // Smaller on mobile, larger on desktop
+                className={`relative w-full bg-black rounded-lg overflow-hidden ${isFullscreen ? 'fixed inset-0 w-screen h-screen z-[9999]' : ''}`}
+                style={isFullscreen ? {
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  width: '100vw',
+                  height: '100vh',
+                  zIndex: 9999,
+                  paddingBottom: 0,
+                  minHeight: '100vh',
+                  borderRadius: 0
+                } : {
+                  paddingBottom: isMobile ? '56.25%' : '70%',
+                  minHeight: isMobile ? '200px' : '400px',
                   height: '0'
                 }}
-              > {/* Responsive height: fits mobile viewport, taller on desktop */}
+              >
                 {isLoading && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50">
                     <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-3"></div>
@@ -394,8 +475,9 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
                 
                 {videoId && !isLoading && (
                   <iframe
+                    ref={iframeRef}
                     className="absolute top-0 left-0 w-full h-full"
-                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&playsinline=1&modestbranding=1&fs=1`}
+                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&playsinline=1&modestbranding=1&fs=1&enablejsapi=1`}
                     title={`${movieTitle} Trailer`}
                     frameBorder="0"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"

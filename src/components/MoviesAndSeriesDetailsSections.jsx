@@ -150,6 +150,9 @@ export default function MoviesAndSeriesDetailsSections(props) {
       videoRef.current.load();
     }
     
+    // Clear any previous errors
+    setVideoError(null);
+    
     try {
       const downloadUrl = generateDownloadUrl(source.id, source.name);
       // Try URL shortening, but don't wait too long - use direct URL as fallback
@@ -379,13 +382,15 @@ export default function MoviesAndSeriesDetailsSections(props) {
     const video = videoRef.current;
     
     if (!video || !videoUrl) {
-      // Don't show error immediately, wait a bit for video to load
-      setTimeout(() => {
+      // On mobile, wait longer before showing error (10 seconds)
+      // On desktop, wait 5 seconds
+      const errorDelay = isMobile ? 10000 : 5000;
+      errorTimeoutRef.current = setTimeout(() => {
         if (videoRef.current && (!videoRef.current.src || videoRef.current.error)) {
           setVideoError('Unable to play video directly. Please use an external player.');
           setIsLoadingPlayback(false);
         }
-      }, 3000);
+      }, errorDelay);
       return;
     }
 
@@ -396,7 +401,8 @@ export default function MoviesAndSeriesDetailsSections(props) {
       
       // Error code 4 (MEDIA_ERR_SRC_NOT_SUPPORTED) - try alternative approach
       if (error.code === 4) {
-        // Try removing crossOrigin and reload
+        // Try removing crossOrigin and reload - give more time on mobile
+        const retryDelay = isMobile ? 1000 : 500;
         setTimeout(() => {
           if (video && videoUrl) {
             video.removeAttribute('crossOrigin');
@@ -406,22 +412,26 @@ export default function MoviesAndSeriesDetailsSections(props) {
               video.src = videoUrl;
               video.load();
               video.play().catch(() => {
-                // If still fails after retry, show error after longer delay
+                // On mobile, wait much longer before showing error (15 seconds)
+                // On desktop, wait 8 seconds
+                const finalErrorDelay = isMobile ? 15000 : 8000;
                 errorTimeoutRef.current = setTimeout(() => {
-                  if (video && video.error) {
+                  if (video && video.error && !video.paused && video.readyState === 0) {
                     setVideoError('Unable to play video directly. Please use an external player.');
                     setIsLoadingPlayback(false);
                   }
-                }, 5000);
+                }, finalErrorDelay);
               });
-            }, 500);
+            }, retryDelay);
           }
-        }, 500);
+        }, retryDelay);
         return;
       }
     }
 
     // Try to reload the video once - don't show error immediately
+    // On mobile, be more patient (wait 2 seconds before retry)
+    const reloadDelay = isMobile ? 2000 : 1000;
     setTimeout(() => {
       if (video && videoUrl && video.error) {
         // Retry loading the video with fresh state
@@ -434,22 +444,25 @@ export default function MoviesAndSeriesDetailsSections(props) {
             video.src = currentSrc;
             video.load();
             video.play().catch(() => {
-              // Give it more time before showing error
-              setTimeout(() => {
-                if (video && video.error) {
+              // On mobile, wait much longer before showing error (20 seconds total)
+              // On desktop, wait 10 seconds
+              const finalErrorDelay = isMobile ? 18000 : 10000;
+              errorTimeoutRef.current = setTimeout(() => {
+                // Only show error if video is still in error state AND hasn't started playing
+                if (video && video.error && video.readyState === 0 && !video.paused === false) {
                   setVideoError('Unable to play video directly. Please use an external player.');
                   setIsLoadingPlayback(false);
                 }
-              }, 4000);
+              }, finalErrorDelay);
             });
           }
-        }, 500);
+        }, reloadDelay);
       } else if (video && !video.error) {
         // Video recovered, clear error
         setVideoError(null);
         setIsLoadingPlayback(false);
       }
-    }, 1000);
+    }, reloadDelay);
   };
 
   const openInVLC = async () => {
@@ -1071,7 +1084,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
               {/* Video Player - Show when playing */}
               {isPlayingMovie && videoUrl ? (
                 <>
-                  {videoError ? (
+                  {videoError && (!videoRef.current || videoRef.current.error || videoRef.current.readyState === 0) ? (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 z-20 p-6">
                       <div className="text-center text-white mb-4 max-w-md">
                         <p className="text-lg font-semibold mb-2">{videoError}</p>
@@ -1209,6 +1222,11 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           onCanPlay={() => {
                             setIsLoadingPlayback(false);
                             setVideoError(null); // Clear any previous errors
+                            // Clear any pending error timeouts
+                            if (errorTimeoutRef.current) {
+                              clearTimeout(errorTimeoutRef.current);
+                              errorTimeoutRef.current = null;
+                            }
                             if (videoRef.current) {
                               setDuration(videoRef.current.duration);
                               // Force play immediately - user already clicked play button
@@ -1216,30 +1234,46 @@ export default function MoviesAndSeriesDetailsSections(props) {
                               if (playPromise !== undefined) {
                                 playPromise.catch(err => {
                                   console.error('Play error:', err);
-                                  // Don't show error immediately, retry first
+                                  // Don't show error immediately, retry multiple times on mobile
                                   if (isMobile) {
-                                    // Retry immediately on mobile
-                                    requestAnimationFrame(() => {
-                                      if (videoRef.current && !videoRef.current.error) {
-                                        videoRef.current.play().catch(() => {
-                                          // Only show error after multiple retries
-                                          setTimeout(() => {
-                                            if (videoRef.current && videoRef.current.error) {
-                                              setVideoError('Unable to play video directly. Please use an external player.');
-                                            }
-                                          }, 2000);
-                                        });
+                                    // Retry multiple times on mobile with increasing delays
+                                    let retryCount = 0;
+                                    const maxRetries = 5;
+                                    const retryPlay = () => {
+                                      retryCount++;
+                                      if (videoRef.current && !videoRef.current.error && retryCount <= maxRetries) {
+                                        setTimeout(() => {
+                                          if (videoRef.current) {
+                                            videoRef.current.play().catch(() => {
+                                              if (retryCount < maxRetries) {
+                                                retryPlay();
+                                              } else {
+                                                // Only show error after all retries fail and wait additional time
+                                                errorTimeoutRef.current = setTimeout(() => {
+                                                  if (videoRef.current && videoRef.current.error && videoRef.current.readyState === 0) {
+                                                    setVideoError('Unable to play video directly. Please use an external player.');
+                                                    setIsLoadingPlayback(false);
+                                                  }
+                                                }, 10000);
+                                              }
+                                            });
+                                          }
+                                        }, retryCount * 500);
                                       }
+                                    };
+                                    requestAnimationFrame(() => {
+                                      retryPlay();
                                     });
                                   } else {
                                     setTimeout(() => {
                                       if (videoRef.current && !videoRef.current.error) {
                                         videoRef.current.play().catch(() => {
-                                          setTimeout(() => {
-                                            if (videoRef.current && videoRef.current.error) {
+                                          errorTimeoutRef.current = setTimeout(() => {
+                                            if (videoRef.current && videoRef.current.error && videoRef.current.readyState === 0) {
                                               setVideoError('Unable to play video directly. Please use an external player.');
+                                              setIsLoadingPlayback(false);
                                             }
-                                          }, 2000);
+                                          }, 5000);
                                         });
                                       }
                                     }, 200);
@@ -1254,11 +1288,28 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           }}
                           onLoadedData={() => {
                             setIsLoadingPlayback(false);
+                            setVideoError(null); // Clear errors when data loads
+                            // Clear any pending error timeouts
+                            if (errorTimeoutRef.current) {
+                              clearTimeout(errorTimeoutRef.current);
+                              errorTimeoutRef.current = null;
+                            }
                             if (videoRef.current) {
                               setDuration(videoRef.current.duration);
-                              // On mobile, ensure play if still paused
+                              // On mobile, ensure play if still paused - retry multiple times
                               if (isMobile && videoRef.current.paused && videoRef.current.readyState >= 2) {
-                                videoRef.current.play().catch(() => {});
+                                let playAttempts = 0;
+                                const tryPlay = () => {
+                                  playAttempts++;
+                                  if (videoRef.current && videoRef.current.paused && playAttempts <= 3) {
+                                    videoRef.current.play().catch(() => {
+                                      if (playAttempts < 3) {
+                                        setTimeout(tryPlay, 500 * playAttempts);
+                                      }
+                                    });
+                                  }
+                                };
+                                tryPlay();
                               }
                             }
                           }}
@@ -1295,6 +1346,11 @@ export default function MoviesAndSeriesDetailsSections(props) {
                             setIsLoadingPlayback(false);
                             setIsPlaying(true);
                             setVideoError(null); // Clear any errors when video starts playing
+                            // Clear any pending error timeouts since video is playing
+                            if (errorTimeoutRef.current) {
+                              clearTimeout(errorTimeoutRef.current);
+                              errorTimeoutRef.current = null;
+                            }
                             setShowControls(true);
                             if (controlsTimeoutRef.current) {
                               clearTimeout(controlsTimeoutRef.current);
@@ -1351,6 +1407,11 @@ export default function MoviesAndSeriesDetailsSections(props) {
                               setCurrentTime(videoRef.current.currentTime);
                               if (!duration || isNaN(duration)) {
                                 setDuration(videoRef.current.duration);
+                              }
+                              // If video is playing and has currentTime > 0, clear any errors
+                              if (videoRef.current.currentTime > 0 && !videoRef.current.error) {
+                                setVideoError(null);
+                                setIsLoadingPlayback(false);
                               }
                             }
                           }}
