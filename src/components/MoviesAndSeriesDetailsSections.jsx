@@ -56,61 +56,86 @@ export default function MoviesAndSeriesDetailsSections(props) {
 
   // Auto-play video on mobile when URL is set and video element is ready
   useEffect(() => {
-    if (isMobile && videoUrl && isPlayingMovie && videoRef.current) {
-      const video = videoRef.current;
-      
-      // Ensure video has src set
-      if (!video.src && videoUrl) {
-        video.src = videoUrl;
-        video.load();
-      }
-      
-      // Wait for video src to be set and try to play
-      const checkAndPlay = () => {
-        if (video.src && (video.readyState >= 1 || video.readyState === 0)) {
-          // Try to play immediately
-          const playVideo = () => {
-            if (video.paused && !video.error) {
-              // Set mobile-friendly attributes
-              video.preload = 'auto';
-              video.muted = false;
-              
-              video.play()
+    if (isMobile && videoUrl && isPlayingMovie) {
+      // Wait for video element to be rendered
+      const checkVideoAndPlay = () => {
+        const video = videoRef.current;
+        
+        if (!video) {
+          // Video element not rendered yet, check again soon
+          setTimeout(checkVideoAndPlay, 50);
+          return;
+        }
+        
+        // Ensure video has src set
+        if (!video.src && videoUrl) {
+          video.src = videoUrl;
+          video.preload = 'auto';
+          video.playbackRate = 1;
+          video.muted = false;
+          video.playsInline = true;
+          video.setAttribute('webkit-playsinline', 'true');
+          video.setAttribute('x5-playsinline', 'true');
+          video.removeAttribute('crossOrigin');
+          video.load();
+        }
+        
+        // Try to play immediately
+        const playVideo = () => {
+          if (video && video.src && video.paused && !video.error) {
+            // Set mobile-friendly attributes
+            video.preload = 'auto';
+            video.muted = false;
+            
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+              playPromise
                 .then(() => {
                   setIsPlaying(true);
                   setIsLoadingPlayback(false);
-                  console.log('Video auto-played successfully via useEffect');
+                  console.log('✅ Video auto-played successfully via useEffect');
                 })
                 .catch((err) => {
-                  console.log('Play failed in useEffect, will retry:', err);
-                  // Retry after a short delay
-                  setTimeout(() => {
-                    if (video && video.readyState >= 1 && video.paused && !video.error) {
-                      video.play()
-                        .then(() => {
-                          setIsPlaying(true);
-                          setIsLoadingPlayback(false);
-                        })
-                        .catch(() => {});
+                  console.log('⚠️ Play failed in useEffect, will retry:', err);
+                  // Retry multiple times
+                  let retryCount = 0;
+                  const retryPlay = () => {
+                    retryCount++;
+                    if (video && video.src && video.paused && !video.error && retryCount <= 10) {
+                      setTimeout(() => {
+                        if (video && video.src) {
+                          video.play()
+                            .then(() => {
+                              setIsPlaying(true);
+                              setIsLoadingPlayback(false);
+                              console.log(`✅ Video playing via useEffect (retry ${retryCount})`);
+                            })
+                            .catch(() => {
+                              if (retryCount < 10) {
+                                retryPlay();
+                              }
+                            });
+                        }
+                      }, 200 * retryCount);
                     }
-                  }, 500);
+                  };
+                  retryPlay();
                 });
             }
-          };
-          
-          // Try immediately
-          playVideo();
-          
-          // Also try after delays to ensure src is fully set
-          setTimeout(playVideo, 200);
-          setTimeout(playVideo, 500);
-        }
+          }
+        };
+        
+        // Try immediately
+        playVideo();
+        
+        // Also try after delays to ensure src is fully set
+        setTimeout(playVideo, 100);
+        setTimeout(playVideo, 300);
+        setTimeout(playVideo, 500);
       };
       
-      // Check immediately and also after delays
-      checkAndPlay();
-      setTimeout(checkAndPlay, 100);
-      setTimeout(checkAndPlay, 300);
+      // Start checking immediately
+      checkVideoAndPlay();
     }
   }, [videoUrl, isPlayingMovie, isMobile]);
 
@@ -1061,11 +1086,49 @@ export default function MoviesAndSeriesDetailsSections(props) {
       const bestSource = sources[0]; // Already sorted by quality preference
       setSelectedSource(bestSource);
       
-      // For mobile, start loading immediately (don't await) to preserve user gesture
-      // The loadVideoUrl function will handle the play attempt synchronously
+      // CRITICAL: On mobile, we MUST play synchronously within user gesture
+      // Generate URL immediately and set video src synchronously
+      const downloadUrl = generateDownloadUrl(bestSource.id, bestSource.name);
+      
+      // Set states immediately
+      setIsLoadingPlayback(true);
+      setVideoError(null);
+      setShowControls(true);
+      setIsPlayingMovie(true);
+      setVideoUrl(downloadUrl);
+      
+      // The video element will be rendered by React after we set isPlayingMovie and videoUrl
+      // The useEffect hook will handle playing once the element is available
+      // But we also try immediately in case the element already exists
+      setTimeout(() => {
+        const video = videoRef.current;
+        if (video && video.src === downloadUrl) {
+          // Video element exists and has src, try to play
+          try {
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+              playPromise
+                .then(() => {
+                  setIsPlaying(true);
+                  setIsLoadingPlayback(false);
+                  console.log('✅ Video playing successfully on mobile (delayed attempt)');
+                })
+                .catch((err) => {
+                  console.log('⚠️ Delayed play attempt failed:', err);
+                  // useEffect will handle retries
+                });
+            }
+          } catch (err) {
+            console.error('Error in delayed play attempt:', err);
+          }
+        }
+      }, 100);
+      
+      // Handle URL shortening in background (non-blocking)
       loadVideoUrl(bestSource, true).catch(err => {
-        console.error('Error loading video:', err);
+        console.error('Error in background URL loading:', err);
       });
+      
       return;
     }
 
