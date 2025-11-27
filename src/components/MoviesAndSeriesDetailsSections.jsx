@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import "react-lazy-load-image-component/src/effects/black-and-white.css";
 import { motion, AnimatePresence } from "framer-motion";
-import { LazyLoadImage } from "react-lazy-load-image-component";
 import Swal from 'sweetalert2';
 import Plyr from 'plyr-react';
 import 'plyr/dist/plyr.css';
@@ -53,6 +51,35 @@ export default function MoviesAndSeriesDetailsSections(props) {
     
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Preload poster image immediately for faster loading
+  useEffect(() => {
+    if (props.movieData?.backdrop) {
+      // Create preload link for faster image loading
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'image';
+      link.href = props.movieData.backdrop;
+      link.setAttribute('fetchpriority', 'high');
+      
+      // Remove existing preload link if any
+      const existingLinks = document.querySelectorAll(`link[href="${props.movieData.backdrop}"]`);
+      existingLinks.forEach(l => l.remove());
+      
+      document.head.appendChild(link);
+      
+      // Also preload using Image object
+      const img = new Image();
+      img.src = props.movieData.backdrop;
+      img.loading = 'eager';
+      img.fetchPriority = 'high';
+      
+      return () => {
+        // Cleanup on unmount
+        link.remove();
+      };
+    }
+  }, [props.movieData?.backdrop]);
 
   // Auto-play video on mobile when URL is set and video element is ready
   useEffect(() => {
@@ -1103,69 +1130,146 @@ export default function MoviesAndSeriesDetailsSections(props) {
       setIsPlayingMovie(true);
       setVideoUrl(downloadUrl);
       
-      // Force React to flush state updates and render video element
-      // Then immediately set src and play within the same gesture context
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const video = videoRef.current;
-          if (video) {
-            // Set video properties synchronously
-            video.src = downloadUrl;
-            video.preload = 'auto';
-            video.muted = false;
-            video.playsInline = true;
-            video.setAttribute('webkit-playsinline', 'true');
-            video.setAttribute('x5-playsinline', 'true');
-            video.removeAttribute('crossOrigin');
-            
-            // Load the video
-            video.load();
-            
-            // Try to play immediately - this MUST happen within user gesture
-            const attemptPlay = () => {
-              if (video && video.src) {
-                const playPromise = video.play();
-                if (playPromise !== undefined) {
-                  playPromise
-                    .then(() => {
-                      setIsPlaying(true);
-                      setIsLoadingPlayback(false);
-                      console.log('✅ Mobile video playing successfully');
-                    })
-                    .catch((err) => {
-                      console.log('⚠️ Initial play failed, will retry:', err);
-                      // Retry after video loads more data
-                      const retryPlay = () => {
-                        if (video && video.readyState >= 1 && video.paused) {
-                          video.play()
-                            .then(() => {
-                              setIsPlaying(true);
-                              setIsLoadingPlayback(false);
-                              console.log('✅ Mobile video playing after retry');
-                            })
-                            .catch(() => {
-                              // Will retry in event handlers
-                            });
-                        }
-                      };
-                      setTimeout(retryPlay, 300);
-                      setTimeout(retryPlay, 800);
-                      setTimeout(retryPlay, 1500);
-                    });
+      // CRITICAL: Set video src and play SYNCHRONOUSLY within user gesture
+      // Use immediate execution, not requestAnimationFrame which delays too much
+      const setupAndPlay = () => {
+        // First, ensure video element exists or wait for it
+        let video = videoRef.current;
+        
+        if (!video) {
+          // Video element not rendered yet, wait a tiny bit and try again
+          setTimeout(() => {
+            video = videoRef.current;
+            if (video) {
+              setupVideoAndPlay(video, downloadUrl);
+            } else {
+              // Still not ready, try one more time
+              setTimeout(() => {
+                video = videoRef.current;
+                if (video) {
+                  setupVideoAndPlay(video, downloadUrl);
                 }
-              }
-            };
-            
-            // Try immediately
-            attemptPlay();
-            
-            // Also try after a micro-delay to ensure src is set
-            setTimeout(attemptPlay, 50);
-          }
-        });
-      });
+              }, 50);
+            }
+          }, 10);
+          return;
+        }
+        
+        setupVideoAndPlay(video, downloadUrl);
+      };
       
-      // Handle URL shortening in background (non-blocking)
+      const setupVideoAndPlay = (video, url) => {
+        // Clear any previous state
+        video.pause();
+        video.removeAttribute('crossOrigin');
+        
+        // Set video properties synchronously
+        video.src = url;
+        video.preload = 'auto';
+        video.playbackRate = 1;
+        video.muted = false;
+        video.volume = 1;
+        video.playsInline = true;
+        video.setAttribute('webkit-playsinline', 'true');
+        video.setAttribute('x5-playsinline', 'true');
+        video.setAttribute('x5-video-player-type', 'h5');
+        video.setAttribute('x5-video-player-fullscreen', 'true');
+        video.removeAttribute('crossOrigin');
+        
+        // Ensure video is visible
+        video.style.display = 'block';
+        video.style.visibility = 'visible';
+        video.style.opacity = '1';
+        video.style.zIndex = '1';
+        video.style.position = 'relative';
+        
+        // Ensure container is visible and scroll into view
+        if (containerRef.current) {
+          containerRef.current.style.display = 'flex';
+          containerRef.current.style.visibility = 'visible';
+          containerRef.current.style.opacity = '1';
+          // Scroll container into view smoothly
+          setTimeout(() => {
+            if (containerRef.current) {
+              containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 100);
+        }
+        
+        // Load the video
+        video.load();
+        
+        // Try to play IMMEDIATELY - this MUST happen within user gesture
+        const attemptPlay = () => {
+          if (video && video.src && !video.error) {
+            // Ensure video is still visible
+            video.style.display = 'block';
+            video.style.visibility = 'visible';
+            video.style.opacity = '1';
+            
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+              playPromise
+                .then(() => {
+                  setIsPlaying(true);
+                  setIsLoadingPlayback(false);
+                  setVideoError(null);
+                  console.log('✅ Mobile video playing successfully');
+                  
+                  // Ensure video stays visible and scroll into view
+                  if (video) {
+                    video.style.display = 'block';
+                    video.style.visibility = 'visible';
+                    video.style.opacity = '1';
+                    // Scroll video into view
+                    setTimeout(() => {
+                      if (video && containerRef.current) {
+                        containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }
+                    }, 100);
+                  }
+                })
+                .catch((err) => {
+                  console.log('⚠️ Initial play failed, will retry:', err);
+                  // Retry after video loads more data - be aggressive
+                  const retryPlay = () => {
+                    if (video && video.src && !video.error && video.paused) {
+                      video.play()
+                        .then(() => {
+                          setIsPlaying(true);
+                          setIsLoadingPlayback(false);
+                          setVideoError(null);
+                          console.log('✅ Mobile video playing after retry');
+                        })
+                        .catch(() => {
+                          // Will retry in event handlers
+                        });
+                    }
+                  };
+                  // Multiple retry attempts with increasing delays
+                  setTimeout(retryPlay, 100);
+                  setTimeout(retryPlay, 300);
+                  setTimeout(retryPlay, 600);
+                  setTimeout(retryPlay, 1000);
+                  setTimeout(retryPlay, 1500);
+                });
+            }
+          }
+        };
+        
+        // Try immediately
+        attemptPlay();
+        
+        // Also try after micro-delays to ensure src is fully set
+        setTimeout(attemptPlay, 10);
+        setTimeout(attemptPlay, 50);
+        setTimeout(attemptPlay, 100);
+      };
+      
+      // Start setup immediately
+      setupAndPlay();
+      
+      // Handle URL shortening in background (non-blocking) - update if successful
       loadVideoUrl(bestSource, true).catch(err => {
         console.error('Error in background URL loading:', err);
       });
@@ -1270,10 +1374,16 @@ export default function MoviesAndSeriesDetailsSections(props) {
     <div className="relative mt-4 sm:mt-6 md:mt-8 bg-gradient-to-br from-gray-900/30 via-gray-800/20 to-black/50 backdrop-blur-sm border border-white/20 p-4 md:p-8 lg:p-10 rounded-2xl shadow-2xl">
       {!props.isMovieDataLoading ? (
         <>
-          <div className="grid lg:grid-cols-2 content-center items-center gap-6 lg:gap-8">
+          <div className={`grid ${isMobile && isPlayingMovie ? 'grid-cols-1' : 'lg:grid-cols-2'} content-center items-center gap-6 lg:gap-8`}>
             <div
-              className="w-full relative shrink-0 bg-black rounded-2xl overflow-hidden"
-              style={isMobile ? {
+              className={`w-full relative shrink-0 bg-black rounded-2xl overflow-hidden ${isMobile && isPlayingMovie ? 'col-span-1' : ''}`}
+              style={isMobile && isPlayingMovie ? {
+                width: '100%',
+                height: 'auto',
+                minHeight: '60vh',
+                maxHeight: 'none',
+                aspectRatio: '16/9'
+              } : isMobile ? {
                 aspectRatio: '16/9',
                 maxHeight: '50vh',
                 minHeight: '200px'
@@ -1351,7 +1461,16 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           right: 0,
                           bottom: 0,
                           zIndex: 9999
-                        } : (isMobile ? {
+                        } : (isMobile && isPlayingMovie ? {
+                          minHeight: '60vh',
+                          width: '100%',
+                          position: 'relative',
+                          zIndex: 10,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          height: 'auto'
+                        } : isMobile ? {
                           minHeight: '200px',
                           maxHeight: '50vh',
                           width: '100%',
@@ -1395,9 +1514,9 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           className={`w-full h-full ${isFullscreen ? 'object-cover' : 'object-contain max-h-full'}`}
                           style={{
                             maxWidth: '100%',
-                            maxHeight: isFullscreen ? '100vh' : (isMobile ? '50vh' : '60vh'),
-                            width: isFullscreen ? '100vw' : (isMobile ? '100%' : 'auto'),
-                            height: isFullscreen ? '100vh' : (isMobile ? 'auto' : 'auto'),
+                            maxHeight: isFullscreen ? '100vh' : (isMobile && isPlayingMovie ? '60vh' : isMobile ? '50vh' : '60vh'),
+                            width: isFullscreen ? '100vw' : (isMobile && isPlayingMovie ? '100%' : isMobile ? '100%' : 'auto'),
+                            height: isFullscreen ? '100vh' : (isMobile && isPlayingMovie ? '60vh' : isMobile ? 'auto' : 'auto'),
                             backgroundColor: '#000',
                             objectFit: isFullscreen ? 'cover' : 'contain',
                             position: 'relative',
@@ -1931,8 +2050,17 @@ export default function MoviesAndSeriesDetailsSections(props) {
                         handlePlayClick();
                       }
                     }}
-                    className="absolute inset-0 cursor-pointer transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-xl hover:shadow-white/20 group bg-gradient-to-br from-gray-700/20 to-gray-900/40 touch-manipulation"
-                    style={{ WebkitTapHighlightColor: 'transparent' }}
+                    className="absolute inset-0 cursor-pointer transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-xl hover:shadow-white/20 group bg-gradient-to-br from-gray-700/20 to-gray-900/40 touch-manipulation overflow-hidden rounded-2xl"
+                    style={{ 
+                      WebkitTapHighlightColor: 'transparent',
+                      width: '100%',
+                      height: '100%',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0
+                    }}
             >
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
 
@@ -1949,24 +2077,44 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 </div>
               </div>
 
-              <LazyLoadImage
+              <img
                 src={props.movieData.backdrop}
-                effect="black-and-white"
                 alt={props.movieData.title}
-                      className="w-full h-full rounded-2xl shrink-0 object-cover"
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        objectPosition: 'center 60%'
-                      }}
-                    />
+                className="w-full h-full rounded-2xl shrink-0 object-cover"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  objectPosition: 'center 60%',
+                  display: 'block',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0
+                }}
+                onLoad={(e) => {
+                  // Image loaded successfully
+                  e.target.style.opacity = '1';
+                }}
+                onError={(e) => {
+                  // Fallback to poster if backdrop fails
+                  if (props.movieData.poster && e.target.src !== props.movieData.poster) {
+                    e.target.src = props.movieData.poster;
+                  } else {
+                    e.target.style.opacity = '0.5';
+                  }
+                }}
+              />
                   </div>
                 </>
               )}
             </div>
 
-            <div className="space-y-4 sm:p-2">
+            <div className={`space-y-4 sm:p-2 ${isMobile && isPlayingMovie ? 'hidden' : ''}`}>
               {props.movieData.genres && (
                 <div className="flex gap-2 flex-wrap">
                   {props.movieData.genres.map((genre, index) => (
