@@ -93,12 +93,20 @@ export default function MoviesAndSeriesDetailsSections(props) {
         video.load();
       }
       
-      // Ensure video is visible
+      // Ensure video is visible and properly positioned
       video.style.display = 'block';
       video.style.visibility = 'visible';
       video.style.opacity = '1';
-      video.style.position = 'relative';
+      video.style.position = 'absolute';
+      video.style.top = '0';
+      video.style.left = '0';
+      video.style.width = '100%';
+      video.style.height = '100%';
+      video.style.maxWidth = '100%';
+      video.style.maxHeight = '100%';
       video.style.zIndex = '1';
+      video.style.objectFit = 'contain';
+      video.style.backgroundColor = '#000';
       
       // Try to play if video is ready
       const tryPlay = () => {
@@ -1143,15 +1151,20 @@ export default function MoviesAndSeriesDetailsSections(props) {
         video.removeAttribute('crossOrigin');
         video.controls = false;
         
-        // Ensure video is visible
+        // Ensure video is visible and properly positioned
         video.style.display = 'block';
         video.style.visibility = 'visible';
         video.style.opacity = '1';
-        video.style.position = 'relative';
-        video.style.zIndex = '1';
+        video.style.position = 'absolute';
+        video.style.top = '0';
+        video.style.left = '0';
         video.style.width = '100%';
-        video.style.height = 'auto';
-        video.style.maxHeight = '50vh';
+        video.style.height = '100%';
+        video.style.maxWidth = '100%';
+        video.style.maxHeight = '100%';
+        video.style.zIndex = '1';
+        video.style.objectFit = 'contain';
+        video.style.backgroundColor = '#000';
         
         // Prevent automatic native fullscreen on iOS
         if (video.webkitEnterFullscreen) {
@@ -1401,7 +1414,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                     <>
                       <div 
                         ref={containerRef} 
-                        className={`relative w-full h-full flex items-center justify-center bg-black ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}
+                        className={`relative w-full bg-black ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}
                         style={{
                           ...(isFullscreen ? {
                             width: '100vw',
@@ -1415,22 +1428,26 @@ export default function MoviesAndSeriesDetailsSections(props) {
                             bottom: 0,
                             zIndex: 9999
                           } : (isMobile ? {
+                            width: '100%',
+                            height: isMobile ? '50vh' : 'auto',
                             minHeight: '200px',
                             maxHeight: '50vh',
-                            width: '100%',
                             position: 'relative',
-                            display: 'flex',
+                            display: 'block',
                             visibility: 'visible',
                             opacity: 1,
-                            zIndex: 1
+                            zIndex: 1,
+                            overflow: 'hidden'
                           } : {
+                            width: '100%',
+                            height: '60vh',
                             minHeight: '300px',
                             maxHeight: '60vh',
-                            width: '100%',
                             position: 'relative',
-                            display: 'flex',
+                            display: 'block',
                             visibility: 'visible',
-                            opacity: 1
+                            opacity: 1,
+                            overflow: 'hidden'
                           }))
                         }}
                         onTouchStart={() => {
@@ -1458,18 +1475,20 @@ export default function MoviesAndSeriesDetailsSections(props) {
                       >
                         <video
                           ref={videoRef}
-                          className={`w-full h-full ${isFullscreen ? 'object-cover' : 'object-contain max-h-full'}`}
+                          className={`${isFullscreen ? 'object-cover' : 'object-contain'}`}
                           style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
                             maxWidth: '100%',
-                            maxHeight: isFullscreen ? '100vh' : (isMobile ? '50vh' : '60vh'),
-                            width: isFullscreen ? '100vw' : (isMobile ? '100%' : 'auto'),
-                            height: isFullscreen ? '100vh' : (isMobile ? 'auto' : 'auto'),
+                            maxHeight: '100%',
                             backgroundColor: '#000',
                             objectFit: isFullscreen ? 'cover' : 'contain',
                             display: 'block',
                             visibility: 'visible',
                             opacity: 1,
-                            position: 'relative',
                             zIndex: 1,
                             // Optimize for mobile performance
                             ...(isMobile && {
@@ -1702,20 +1721,34 @@ export default function MoviesAndSeriesDetailsSections(props) {
                               video.style.display = 'block';
                               video.style.visibility = 'visible';
                               video.style.opacity = '1';
-                              video.style.position = 'relative';
+                              video.style.position = 'absolute';
+                              video.style.top = '0';
+                              video.style.left = '0';
+                              video.style.width = '100%';
+                              video.style.height = '100%';
+                              video.style.maxWidth = '100%';
+                              video.style.maxHeight = '100%';
                               video.style.zIndex = '1';
+                              video.style.objectFit = 'contain';
+                              video.style.backgroundColor = '#000';
                               
                               // Ensure container is visible
                               if (containerRef.current) {
-                                containerRef.current.style.display = 'flex';
+                                containerRef.current.style.display = 'block';
                                 containerRef.current.style.visibility = 'visible';
                                 containerRef.current.style.opacity = '1';
                                 containerRef.current.style.position = 'relative';
                                 containerRef.current.style.zIndex = '1';
+                                containerRef.current.style.width = '100%';
+                                containerRef.current.style.height = '50vh';
+                                containerRef.current.style.minHeight = '200px';
+                                containerRef.current.style.maxHeight = '50vh';
                               }
                               
                               // Scroll video into view if needed
-                              video.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              if (containerRef.current) {
+                                containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              }
                             }
                             
                             setShowControls(true);
