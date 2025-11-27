@@ -127,9 +127,9 @@ export default function MoviesAndSeriesDetailsSections(props) {
         video.style.position = 'relative';
       }
       
-      // Try to play with multiple attempts
+      // Try to play with multiple attempts - be VERY aggressive
       const playVideo = () => {
-        if (video && video.src && video.paused && !video.error) {
+        if (video && video.src) {
           // Ensure visibility before playing
           if (isMobile) {
             video.style.display = 'block';
@@ -138,39 +138,45 @@ export default function MoviesAndSeriesDetailsSections(props) {
             video.style.zIndex = '1';
           }
           
+          // Try playing even if video hasn't fully loaded
           const playPromise = video.play();
           if (playPromise !== undefined) {
             playPromise
               .then(() => {
                 setIsPlaying(true);
                 setIsLoadingPlayback(false);
+                setVideoError(null);
                 // Ensure video is visible after playing starts
                 if (isMobile && video) {
                   video.style.display = 'block';
                   video.style.visibility = 'visible';
                   video.style.opacity = '1';
-                  // Scroll into view
-                  video.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
                 console.log('✅ Video auto-played successfully via useEffect');
               })
               .catch((err) => {
-                console.log('⚠️ Play failed in useEffect:', err);
-                // Will retry in event handlers (onCanPlay, onLoadedData, etc.)
+                console.log('⚠️ Play failed in useEffect, will retry:', err);
+                // Don't show error, just keep retrying
               });
+          } else {
+            // If play() returns undefined, try again
+            setTimeout(() => playVideo(), 50);
           }
         }
       };
       
-      // Try immediately if video is ready
-      if (video.readyState >= 1) {
-        playVideo();
-      }
+      // Try immediately - don't wait for readyState
+      playVideo();
       
-      // Also try after delays to ensure src is fully set
+      // Also try many times with increasing delays
+      setTimeout(playVideo, 50);
       setTimeout(playVideo, 100);
-      setTimeout(playVideo, 300);
-      setTimeout(playVideo, 600);
+      setTimeout(playVideo, 200);
+      setTimeout(playVideo, 400);
+      setTimeout(playVideo, 700);
+      setTimeout(playVideo, 1200);
+      setTimeout(playVideo, 2000);
+      setTimeout(playVideo, 3000);
     }
   }, [videoUrl, isPlayingMovie, isMobile]);
 
@@ -1252,13 +1258,15 @@ export default function MoviesAndSeriesDetailsSections(props) {
         video.load();
         
         // Try to play IMMEDIATELY - this MUST happen within user gesture
+        // Don't wait for load() to complete - try playing right away
         const attemptPlay = () => {
-          if (video && video.src && !video.error) {
+          if (video && video.src) {
             // Ensure video is still visible
             video.style.display = 'block';
             video.style.visibility = 'visible';
             video.style.opacity = '1';
             
+            // Try playing even if video hasn't fully loaded yet
             const playPromise = video.play();
             if (playPromise !== undefined) {
               playPromise
@@ -1268,54 +1276,37 @@ export default function MoviesAndSeriesDetailsSections(props) {
                   setVideoError(null);
                   console.log('✅ Mobile video playing successfully');
                   
-                  // Ensure video stays visible and scroll into view
+                  // Ensure video stays visible
                   if (video) {
                     video.style.display = 'block';
                     video.style.visibility = 'visible';
                     video.style.opacity = '1';
-                    // Scroll video into view
-                    setTimeout(() => {
-                      if (video && containerRef.current) {
-                        containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }
-                    }, 100);
                   }
                 })
                 .catch((err) => {
-                  console.log('⚠️ Initial play failed, will retry:', err);
-                  // Retry after video loads more data - be aggressive
-                  const retryPlay = () => {
-                    if (video && video.src && !video.error && video.paused) {
-                      video.play()
-                        .then(() => {
-                          setIsPlaying(true);
-                          setIsLoadingPlayback(false);
-                          setVideoError(null);
-                          console.log('✅ Mobile video playing after retry');
-                        })
-                        .catch(() => {
-                          // Will retry in event handlers
-                        });
-                    }
-                  };
-                  // Multiple retry attempts with increasing delays
-                  setTimeout(retryPlay, 100);
-                  setTimeout(retryPlay, 300);
-                  setTimeout(retryPlay, 600);
-                  setTimeout(retryPlay, 1000);
-                  setTimeout(retryPlay, 1500);
+                  console.log('⚠️ Play attempt failed, will retry:', err);
+                  // Don't show error, just retry aggressively
                 });
+            } else {
+              // If play() returns undefined, try again immediately
+              setTimeout(() => attemptPlay(), 10);
             }
           }
         };
         
-        // Try immediately
+        // Try playing IMMEDIATELY - don't wait
         attemptPlay();
         
-        // Also try after micro-delays to ensure src is fully set
+        // Also try multiple times with very short delays
         setTimeout(attemptPlay, 10);
         setTimeout(attemptPlay, 50);
         setTimeout(attemptPlay, 100);
+        setTimeout(attemptPlay, 200);
+        setTimeout(attemptPlay, 300);
+        setTimeout(attemptPlay, 500);
+        setTimeout(attemptPlay, 800);
+        setTimeout(attemptPlay, 1200);
+        setTimeout(attemptPlay, 2000);
       };
       
       // Start setup immediately
@@ -1618,26 +1609,34 @@ export default function MoviesAndSeriesDetailsSections(props) {
                                 clearTimeout(errorTimeoutRef.current);
                                 errorTimeoutRef.current = null;
                               }
-                              // On mobile, try to play immediately after metadata loads - be aggressive
-                              if (isMobile && videoRef.current.readyState >= 1) {
-                                // Try multiple times with increasing delays
+                              // On mobile, try to play immediately after metadata loads - be EXTREMELY aggressive
+                              if (isMobile) {
+                                // Try multiple times with increasing delays - don't wait for readyState
                                 let attempts = 0;
                                 const tryPlay = () => {
                                   attempts++;
-                                  if (videoRef.current && videoRef.current.readyState >= 1 && attempts <= 8) {
+                                  if (videoRef.current && attempts <= 20) {
                                     videoRef.current.play().then(() => {
                                       setIsPlaying(true);
                                       setIsLoadingPlayback(false);
                                       setVideoError(null);
                                     }).catch(() => {
                                       // Retry with delay
-                                      if (attempts < 8) {
-                                        setTimeout(tryPlay, 200 * attempts);
+                                      if (attempts < 20) {
+                                        setTimeout(tryPlay, 150 * Math.min(attempts, 8));
                                       }
                                     });
                                   }
                                 };
+                                // Try immediately and many times
                                 tryPlay();
+                                setTimeout(tryPlay, 50);
+                                setTimeout(tryPlay, 100);
+                                setTimeout(tryPlay, 200);
+                                setTimeout(tryPlay, 400);
+                                setTimeout(tryPlay, 700);
+                                setTimeout(tryPlay, 1200);
+                                setTimeout(tryPlay, 2000);
                               }
                             }
                           }}
@@ -1658,56 +1657,46 @@ export default function MoviesAndSeriesDetailsSections(props) {
                             if (videoRef.current) {
                               setDuration(videoRef.current.duration);
                               // Force play immediately - user already clicked play button
-                              // On mobile, be very aggressive with play attempts
+                              // On mobile, be EXTREMELY aggressive with play attempts
                               if (isMobile) {
-                                // Try to play immediately, multiple times if needed
+                                // Try to play immediately, MANY times
                                 let playAttempts = 0;
                                 const forcePlay = () => {
                                   playAttempts++;
-                                  if (videoRef.current && playAttempts <= 8) {
+                                  if (videoRef.current && playAttempts <= 25) {
                                     const playPromise = videoRef.current.play();
                                     if (playPromise !== undefined) {
                                       playPromise
                                         .then(() => {
                                           setIsPlaying(true);
                                           setIsLoadingPlayback(false);
+                                          setVideoError(null);
                                         })
                                         .catch(err => {
-                                          console.log(`Play attempt ${playAttempts} failed:`, err);
-                                          // Retry with increasing delays
-                                          if (playAttempts < 8) {
+                                          // Keep retrying, don't give up
+                                          if (playAttempts < 25) {
                                             setTimeout(() => {
                                               if (videoRef.current && !videoRef.current.error) {
                                                 forcePlay();
                                               }
-                                            }, 150 * playAttempts);
-                                          } else {
-                                            // Last resort: wait longer and try once more
-                                            setTimeout(() => {
-                                              if (videoRef.current && !videoRef.current.error) {
-                                                videoRef.current.play()
-                                                  .then(() => {
-                                                    setIsPlaying(true);
-                                                    setIsLoadingPlayback(false);
-                                                  })
-                                                  .catch(() => {
-                                                    // Only show error after all retries fail
-                                                    errorTimeoutRef.current = setTimeout(() => {
-                                                      if (videoRef.current && videoRef.current.error && videoRef.current.readyState === 0) {
-                                                        setVideoError('Unable to play video directly. Please use an external player.');
-                                                        setIsLoadingPlayback(false);
-                                                      }
-                                                    }, 10000);
-                                                  });
-                                              }
-                                            }, 2000);
+                                            }, 100 * Math.min(playAttempts, 10));
                                           }
                                         });
+                                    } else {
+                                      // If play() returns undefined, try again
+                                      setTimeout(() => forcePlay(), 50);
                                     }
                                   }
                                 };
-                                // Start playing immediately
+                                // Start playing immediately and many times
                                 forcePlay();
+                                setTimeout(() => forcePlay(), 50);
+                                setTimeout(() => forcePlay(), 100);
+                                setTimeout(() => forcePlay(), 200);
+                                setTimeout(() => forcePlay(), 400);
+                                setTimeout(() => forcePlay(), 800);
+                                setTimeout(() => forcePlay(), 1500);
+                                setTimeout(() => forcePlay(), 2500);
                               } else {
                                 // Desktop: standard play attempt
                                 const playPromise = videoRef.current.play();
@@ -1751,33 +1740,35 @@ export default function MoviesAndSeriesDetailsSections(props) {
                             }
                             if (videoRef.current) {
                               setDuration(videoRef.current.duration);
-                              // On mobile, ensure play if still paused - be very aggressive
-                              if (isMobile && videoRef.current.paused && videoRef.current.readyState >= 2) {
-                                // Try to play immediately, multiple times
+                              // On mobile, ensure play if still paused - be EXTREMELY aggressive
+                              if (isMobile && videoRef.current.paused) {
+                                // Try to play immediately, many times - don't wait for readyState
                                 let playAttempts = 0;
                                 const tryPlay = () => {
                                   playAttempts++;
-                                  if (videoRef.current && videoRef.current.paused && playAttempts <= 5) {
+                                  if (videoRef.current && videoRef.current.paused && playAttempts <= 15) {
                                     videoRef.current.play()
                                       .then(() => {
                                         setIsPlaying(true);
                                         setIsLoadingPlayback(false);
+                                        setVideoError(null);
                                       })
                                       .catch(() => {
-                                        if (playAttempts < 5) {
-                                          setTimeout(tryPlay, 300 * playAttempts);
+                                        // Keep retrying
+                                        if (playAttempts < 15) {
+                                          setTimeout(tryPlay, 200 * Math.min(playAttempts, 5));
                                         }
                                       });
                                   }
                                 };
-                                // Try immediately
+                                // Try immediately and many times
                                 tryPlay();
-                                // Also try after a short delay
-                                setTimeout(() => {
-                                  if (videoRef.current && videoRef.current.paused) {
-                                    tryPlay();
-                                  }
-                                }, 300);
+                                setTimeout(tryPlay, 50);
+                                setTimeout(tryPlay, 100);
+                                setTimeout(tryPlay, 200);
+                                setTimeout(tryPlay, 400);
+                                setTimeout(tryPlay, 800);
+                                setTimeout(tryPlay, 1500);
                               }
                             }
                           }}
