@@ -377,7 +377,55 @@ export default function MoviesAndSeriesDetailsSections(props) {
           }
         }, 100);
       } else {
-        // Wait for video element to update with new src
+        // Desktop: Video element is always rendered, so play immediately
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const video = videoRef.current;
+            if (video && shortUrl) {
+              // Ensure video has src
+              if (video.src !== shortUrl) {
+                video.src = shortUrl;
+              }
+              video.preload = 'auto';
+              video.playbackRate = 1;
+              video.muted = false;
+              video.volume = 1;
+              video.playsInline = true;
+              video.removeAttribute('crossOrigin');
+              
+              // Force visibility
+              video.style.setProperty('display', 'block', 'important');
+              video.style.setProperty('visibility', 'visible', 'important');
+              video.style.setProperty('opacity', '1', 'important');
+              
+              // Load and play
+              video.load();
+              
+              // Try playing immediately
+              const attemptPlay = () => {
+                if (video && video.src) {
+                  video.play()
+                    .then(() => {
+                      setIsPlaying(true);
+                      setIsLoadingPlayback(false);
+                      setVideoError(null);
+                      console.log('✅✅✅ DESKTOP VIDEO IS PLAYING!!!');
+                    })
+                    .catch(() => {
+                      // Retry
+                    });
+                }
+              };
+              
+              attemptPlay();
+              setTimeout(attemptPlay, 100);
+              setTimeout(attemptPlay, 500);
+              setTimeout(attemptPlay, 1000);
+            }
+          });
+        });
+        
+        // Also keep the old logic as fallback
         setTimeout(() => {
           if (videoRef.current) {
             // Set optimal buffering settings
@@ -1204,34 +1252,33 @@ export default function MoviesAndSeriesDetailsSections(props) {
       }
       
       // CRITICAL: Set video src and play SYNCHRONOUSLY within user gesture
-      // Use immediate execution - NO delays, NO requestAnimationFrame
-      const setupAndPlay = () => {
-        // First, ensure video element exists or wait for it
-        let video = videoRef.current;
-        
-        if (!video) {
-          // Video element not rendered yet - check immediately multiple times
-          const checkVideo = () => {
-            video = videoRef.current;
-            if (video) {
-              setupVideoAndPlay(video, downloadUrl);
-            } else {
-              // Check again immediately
-              setTimeout(checkVideo, 1);
-              setTimeout(checkVideo, 5);
-              setTimeout(checkVideo, 10);
-            }
-          };
-          checkVideo();
-          return;
-        }
-        
-        // Video exists - play IMMEDIATELY
-        setupVideoAndPlay(video, downloadUrl);
-      };
-      
-      // Start IMMEDIATELY - no delays
-      setupAndPlay();
+      // Video element is now ALWAYS rendered, so it should exist immediately
+      // Use requestAnimationFrame to ensure DOM is updated, then play IMMEDIATELY
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // Double RAF ensures React has updated the DOM
+          let video = videoRef.current;
+          
+          if (!video) {
+            // If still not available, check multiple times VERY quickly
+            const checkVideo = () => {
+              video = videoRef.current;
+              if (video) {
+                setupVideoAndPlay(video, downloadUrl);
+              } else {
+                setTimeout(checkVideo, 1);
+                setTimeout(checkVideo, 5);
+                setTimeout(checkVideo, 10);
+              }
+            };
+            checkVideo();
+            return;
+          }
+          
+          // Video exists - play IMMEDIATELY
+          setupVideoAndPlay(video, downloadUrl);
+        });
+      });
       
       const setupVideoAndPlay = (video, url) => {
         // Clear any error states and timeouts
@@ -1259,18 +1306,28 @@ export default function MoviesAndSeriesDetailsSections(props) {
         video.removeAttribute('crossOrigin');
         
         // Ensure video is visible - FORCE visibility with important flags
+        // CRITICAL: Set explicit dimensions for mobile
+        if (isMobile) {
+          video.style.setProperty('width', '100%', 'important');
+          video.style.setProperty('height', '60vh', 'important');
+          video.style.setProperty('min-width', '100%', 'important');
+          video.style.setProperty('min-height', '60vh', 'important');
+          video.style.setProperty('max-width', '100%', 'important');
+          video.style.setProperty('max-height', '60vh', 'important');
+        }
         video.style.setProperty('display', 'block', 'important');
         video.style.setProperty('visibility', 'visible', 'important');
         video.style.setProperty('opacity', '1', 'important');
         video.style.setProperty('z-index', '50', 'important');
         video.style.setProperty('position', 'relative', 'important');
         video.style.setProperty('pointer-events', 'auto', 'important');
-        video.style.setProperty('top', 'auto', 'important');
-        video.style.setProperty('left', 'auto', 'important');
-        video.style.setProperty('right', 'auto', 'important');
-        video.style.setProperty('bottom', 'auto', 'important');
+        video.style.setProperty('top', '0', 'important');
+        video.style.setProperty('left', '0', 'important');
+        video.style.setProperty('right', '0', 'important');
+        video.style.setProperty('bottom', '0', 'important');
         video.style.setProperty('margin', '0', 'important');
         video.style.setProperty('padding', '0', 'important');
+        video.style.setProperty('background-color', '#000', 'important');
         
         // Ensure container is visible and scroll into view
         if (containerRef.current) {
@@ -1585,203 +1642,209 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 </>
               )}
 
-              {/* Video Player - Show when playing */}
-              {isPlayingMovie && videoUrl ? (
-                <>
-                  {videoError && videoRef.current && videoRef.current.error && videoRef.current.readyState === 0 && videoRef.current.paused && videoRef.current.currentTime === 0 ? (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 z-20 p-6">
-                      <div className="text-center text-white mb-4 max-w-md">
-                        <p className="text-lg font-semibold mb-2">{videoError}</p>
-                        <p className="text-sm text-gray-400 mb-6">Try one of these options:</p>
-                        <div className="flex flex-wrap gap-3 justify-center">
-                          <button
-                            onClick={openInVLC}
-                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium text-sm"
-                          >
-                            Open in VLC
-                          </button>
-                          <button
-                            onClick={openInNewTab}
-                            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium text-sm"
-                          >
-                            Open in New Tab
-                          </button>
-                          <button
-                            onClick={downloadVideo}
-                            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium text-sm"
-                          >
-                            Download
-                          </button>
-                          <button
-                            onClick={stopPlaying}
-                            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors font-medium text-sm"
-                          >
-                            Close
-                          </button>
-                        </div>
+              {/* Video Player - ALWAYS RENDER (hidden when not playing) - CRITICAL FOR IMMEDIATE PLAYBACK */}
+              <div 
+                ref={containerRef} 
+                className={`relative w-full h-full flex items-center justify-center bg-black ${isFullscreen ? 'fixed inset-0 z-50' : ''} ${!isPlayingMovie || !videoUrl ? 'hidden' : ''}`}
+                style={{
+                  ...(isFullscreen ? {
+                    width: '100vw',
+                    height: '100vh',
+                    minHeight: '100vh',
+                    maxHeight: '100vh',
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    zIndex: 9999,
+                    backgroundImage: `url(${props.movieData.backdrop || props.movieData.poster})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center 60%',
+                    backgroundRepeat: 'no-repeat'
+                  } : (isMobile && isPlayingMovie ? {
+                    minHeight: '60vh',
+                    width: '100%',
+                    position: 'relative',
+                    zIndex: 50,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: 'auto',
+                    overflow: 'visible',
+                    backgroundColor: '#000',
+                    backgroundImage: `url(${props.movieData.backdrop || props.movieData.poster})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center 60%',
+                    backgroundRepeat: 'no-repeat'
+                  } : isMobile ? {
+                    minHeight: '200px',
+                    maxHeight: '50vh',
+                    width: '100%',
+                    position: 'relative',
+                    zIndex: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  } : {
+                    minHeight: '300px',
+                    maxHeight: '60vh',
+                    width: '100%',
+                    position: 'relative',
+                    zIndex: 10
+                  })),
+                  ...(!isPlayingMovie || !videoUrl ? {
+                    display: 'none',
+                    visibility: 'hidden',
+                    opacity: 0,
+                    position: 'absolute',
+                    width: 0,
+                    height: 0,
+                    overflow: 'hidden'
+                  } : {})
+                }}
+                onTouchStart={() => {
+                  setShowControls(true);
+                  if (controlsTimeoutRef.current) {
+                    clearTimeout(controlsTimeoutRef.current);
+                  }
+                  controlsTimeoutRef.current = setTimeout(() => {
+                    if (isPlaying) {
+                      setShowControls(false);
+                    }
+                  }, 4000);
+                }}
+                onMouseMove={() => {
+                  setShowControls(true);
+                  if (controlsTimeoutRef.current) {
+                    clearTimeout(controlsTimeoutRef.current);
+                  }
+                  controlsTimeoutRef.current = setTimeout(() => {
+                    if (isPlaying) {
+                      setShowControls(false);
+                    }
+                  }, 3000);
+                }}
+              >
+                {videoError && videoRef.current && videoRef.current.error && videoRef.current.readyState === 0 && videoRef.current.paused && videoRef.current.currentTime === 0 ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 z-20 p-6">
+                    <div className="text-center text-white mb-4 max-w-md">
+                      <p className="text-lg font-semibold mb-2">{videoError}</p>
+                      <p className="text-sm text-gray-400 mb-6">Try one of these options:</p>
+                      <div className="flex flex-wrap gap-3 justify-center">
+                        <button
+                          onClick={openInVLC}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium text-sm"
+                        >
+                          Open in VLC
+                        </button>
+                        <button
+                          onClick={openInNewTab}
+                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium text-sm"
+                        >
+                          Open in New Tab
+                        </button>
+                        <button
+                          onClick={downloadVideo}
+                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium text-sm"
+                        >
+                          Download
+                        </button>
+                        <button
+                          onClick={stopPlaying}
+                          className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors font-medium text-sm"
+                        >
+                          Close
+                        </button>
                       </div>
                     </div>
-                  ) : (
-                    <>
-                      <div 
-                        ref={containerRef} 
-                        className={`relative w-full h-full flex items-center justify-center bg-black ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}
-                        style={{
-                          ...(isFullscreen ? {
-                            width: '100vw',
-                            height: '100vh',
-                            minHeight: '100vh',
-                            maxHeight: '100vh',
-                            position: 'fixed',
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            zIndex: 9999,
-                            backgroundImage: `url(${props.movieData.backdrop || props.movieData.poster})`,
-                            backgroundSize: 'cover',
-                            backgroundPosition: 'center 60%',
-                            backgroundRepeat: 'no-repeat'
-                          } : (isMobile && isPlayingMovie ? {
-                            minHeight: '60vh',
-                            width: '100%',
-                            position: 'relative',
-                            zIndex: 50,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            height: 'auto',
-                            overflow: 'visible',
-                            backgroundColor: '#000',
-                            backgroundImage: `url(${props.movieData.backdrop || props.movieData.poster})`,
-                            backgroundSize: 'cover',
-                            backgroundPosition: 'center 60%',
-                            backgroundRepeat: 'no-repeat'
-                          } : isMobile ? {
-                            minHeight: '200px',
-                            maxHeight: '50vh',
-                            width: '100%',
-                            position: 'relative',
-                            zIndex: 10,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          } : {
-                            minHeight: '300px',
-                            maxHeight: '60vh',
-                            width: '100%',
-                            position: 'relative',
-                            zIndex: 10
-                          }))
-                        }}
-                        onTouchStart={() => {
-                          setShowControls(true);
-                          if (controlsTimeoutRef.current) {
-                            clearTimeout(controlsTimeoutRef.current);
-                          }
-                          controlsTimeoutRef.current = setTimeout(() => {
-                            if (isPlaying) {
-                              setShowControls(false);
-                            }
-                          }, 4000);
-                        }}
-                        onMouseMove={() => {
-                          setShowControls(true);
-                          if (controlsTimeoutRef.current) {
-                            clearTimeout(controlsTimeoutRef.current);
-                          }
-                          controlsTimeoutRef.current = setTimeout(() => {
-                            if (isPlaying) {
-                              setShowControls(false);
-                            }
-                          }, 3000);
-                        }}
-                      >
-                        <video
-                          ref={videoRef}
-                          className={`w-full h-full ${isFullscreen ? 'object-cover' : 'object-contain max-h-full'}`}
-                          style={{
-                            ...(isFullscreen ? {
-                              width: '100vw',
-                              height: '100vh',
-                              maxWidth: '100vw',
-                              maxHeight: '100vh',
-                              minWidth: '100vw',
-                              minHeight: '100vh'
-                            } : isMobile && isPlayingMovie ? {
-                              width: '100%',
-                              height: '60vh',
-                              minWidth: '100%',
-                              minHeight: '60vh',
-                              maxWidth: '100%',
-                              maxHeight: '60vh'
-                            } : isMobile ? {
-                              width: '100%',
-                              height: '50vh',
-                              minWidth: '100%',
-                              minHeight: '200px',
-                              maxWidth: '100%',
-                              maxHeight: '50vh'
-                            } : {
-                              width: '100%',
-                              height: 'auto',
-                              minWidth: '100%',
-                              minHeight: '300px',
-                              maxWidth: '100%',
-                              maxHeight: '60vh'
-                            }),
-                            backgroundColor: '#000',
-                            objectFit: isFullscreen ? 'cover' : 'contain',
-                            position: 'relative',
-                            zIndex: 20,
-                            display: 'block !important',
-                            visibility: 'visible !important',
-                            opacity: '1 !important',
-                            pointerEvents: 'auto',
-                            margin: 0,
-                            padding: 0,
-                            // FORCE visibility on mobile - CRITICAL
-                            ...(isMobile && {
-                              width: '100% !important',
-                              height: '60vh !important',
-                              minWidth: '100% !important',
-                              minHeight: '60vh !important',
-                              maxWidth: '100% !important',
-                              maxHeight: '60vh !important',
-                              display: 'block !important',
-                              visibility: 'visible !important',
-                              opacity: '1 !important',
-                              zIndex: '20 !important',
-                              position: 'relative !important',
-                              top: '0 !important',
-                              left: '0 !important',
-                              right: '0 !important',
-                              bottom: '0 !important',
-                              willChange: 'auto',
-                              transform: 'translateZ(0)',
-                              WebkitTransform: 'translateZ(0)',
-                              backfaceVisibility: 'visible',
-                              WebkitBackfaceVisibility: 'visible',
-                              WebkitPlaysinline: true,
-                              playsInline: true
-                            })
-                          }}
-                          src={videoUrl}
-                          poster={props.movieData.backdrop}
-                          autoPlay
-                          playsInline
-                          preload={isMobile ? "metadata" : "auto"}
-                          crossOrigin={null}
-                          webkit-playsinline="true"
-                          x5-playsinline="true"
-                          x5-video-player-type="h5"
-                          x5-video-player-fullscreen="true"
-                          x5-video-orientation="portrait"
-                          controls={false}
-                          muted={false}
-                          loop={false}
-                          disablePictureInPicture={true}
-                          disableRemotePlayback={true}
+                  </div>
+                ) : null}
+                <video
+                  ref={videoRef}
+                  className={`w-full h-full ${isFullscreen ? 'object-cover' : 'object-contain max-h-full'}`}
+                  style={{
+                    ...(isFullscreen ? {
+                      width: '100vw',
+                      height: '100vh',
+                      maxWidth: '100vw',
+                      maxHeight: '100vh',
+                      minWidth: '100vw',
+                      minHeight: '100vh'
+                    } : isMobile && isPlayingMovie ? {
+                      width: '100%',
+                      height: '60vh',
+                      minWidth: '100%',
+                      minHeight: '60vh',
+                      maxWidth: '100%',
+                      maxHeight: '60vh'
+                    } : isMobile ? {
+                      width: '100%',
+                      height: '50vh',
+                      minWidth: '100%',
+                      minHeight: '200px',
+                      maxWidth: '100%',
+                      maxHeight: '50vh'
+                    } : {
+                      width: '100%',
+                      height: 'auto',
+                      minWidth: '100%',
+                      minHeight: '300px',
+                      maxWidth: '100%',
+                      maxHeight: '60vh'
+                    }),
+                    backgroundColor: '#000',
+                    objectFit: isFullscreen ? 'cover' : 'contain',
+                    position: 'relative',
+                    zIndex: 20,
+                    display: (isPlayingMovie && videoUrl) ? 'block !important' : 'none',
+                    visibility: (isPlayingMovie && videoUrl) ? 'visible !important' : 'hidden',
+                    opacity: (isPlayingMovie && videoUrl) ? '1 !important' : '0',
+                    pointerEvents: (isPlayingMovie && videoUrl) ? 'auto' : 'none',
+                    margin: 0,
+                    padding: 0,
+                    // FORCE visibility on mobile - CRITICAL
+                    ...(isMobile && isPlayingMovie && videoUrl ? {
+                      width: '100% !important',
+                      height: '60vh !important',
+                      minWidth: '100% !important',
+                      minHeight: '60vh !important',
+                      maxWidth: '100% !important',
+                      maxHeight: '60vh !important',
+                      display: 'block !important',
+                      visibility: 'visible !important',
+                      opacity: '1 !important',
+                      zIndex: '20 !important',
+                      position: 'relative !important',
+                      top: '0 !important',
+                      left: '0 !important',
+                      right: '0 !important',
+                      bottom: '0 !important',
+                      willChange: 'auto',
+                      transform: 'translateZ(0)',
+                      WebkitTransform: 'translateZ(0)',
+                      backfaceVisibility: 'visible',
+                      WebkitBackfaceVisibility: 'visible',
+                      WebkitPlaysinline: true,
+                      playsInline: true
+                    } : {})
+                  }}
+                  src={videoUrl || undefined}
+                  poster={props.movieData.backdrop}
+                  autoPlay={isPlayingMovie && videoUrl}
+                  playsInline
+                  preload={isMobile ? "metadata" : "auto"}
+                  crossOrigin={null}
+                  webkit-playsinline="true"
+                  x5-playsinline="true"
+                  x5-video-player-type="h5"
+                  x5-video-player-fullscreen="true"
+                  x5-video-orientation="portrait"
+                  controls={false}
+                  muted={false}
+                  loop={false}
+                  disablePictureInPicture={true}
+                  disableRemotePlayback={true}
                           onEnded={stopPlaying}
                           onError={handleVideoError}
                           onLoadStart={() => {
@@ -1855,20 +1918,19 @@ export default function MoviesAndSeriesDetailsSections(props) {
                             if (videoRef.current) {
                               setDuration(videoRef.current.duration);
                               // Force play immediately - user already clicked play button
-                              // On mobile, be EXTREMELY aggressive with play attempts
-                              if (isMobile) {
-                                // Try to play immediately, MANY times
-                                let playAttempts = 0;
-                                const forcePlay = () => {
-                                  playAttempts++;
-                                  if (videoRef.current && playAttempts <= 25) {
-                                    const playPromise = videoRef.current.play();
-                                    if (playPromise !== undefined) {
-                                      playPromise
+                              // Play on BOTH mobile and desktop
+                              let playAttempts = 0;
+                              const forcePlay = () => {
+                                playAttempts++;
+                                if (videoRef.current && videoRef.current.src && playAttempts <= 25) {
+                                  const playPromise = videoRef.current.play();
+                                  if (playPromise !== undefined) {
+                                    playPromise
                                         .then(() => {
                                           setIsPlaying(true);
                                           setIsLoadingPlayback(false);
                                           setVideoError(null);
+                                          console.log('✅✅✅ VIDEO PLAYING on canPlay event!');
                                         })
                                         .catch(err => {
                                           // Keep retrying, don't give up
@@ -1880,42 +1942,21 @@ export default function MoviesAndSeriesDetailsSections(props) {
                                             }, 100 * Math.min(playAttempts, 10));
                                           }
                                         });
-                                    } else {
-                                      // If play() returns undefined, try again
-                                      setTimeout(() => forcePlay(), 50);
-                                    }
+                                  } else {
+                                    // If play() returns undefined, try again
+                                    setTimeout(() => forcePlay(), 50);
                                   }
-                                };
-                                // Start playing immediately and many times
-                                forcePlay();
-                                setTimeout(() => forcePlay(), 50);
-                                setTimeout(() => forcePlay(), 100);
-                                setTimeout(() => forcePlay(), 200);
-                                setTimeout(() => forcePlay(), 400);
-                                setTimeout(() => forcePlay(), 800);
-                                setTimeout(() => forcePlay(), 1500);
-                                setTimeout(() => forcePlay(), 2500);
-                              } else {
-                                // Desktop: standard play attempt
-                                const playPromise = videoRef.current.play();
-                                if (playPromise !== undefined) {
-                                  playPromise.catch(err => {
-                                    console.error('Play error:', err);
-                                    setTimeout(() => {
-                                      if (videoRef.current && !videoRef.current.error) {
-                                        videoRef.current.play().catch(() => {
-                                          errorTimeoutRef.current = setTimeout(() => {
-                                            if (videoRef.current && videoRef.current.error && videoRef.current.readyState === 0) {
-                                              setVideoError('Unable to play video directly. Please use an external player.');
-                                              setIsLoadingPlayback(false);
-                                            }
-                                          }, 5000);
-                                        });
-                                      }
-                                    }, 200);
-                                  });
                                 }
-                              }
+                              };
+                              // Start playing immediately and many times - for BOTH mobile and desktop
+                              forcePlay();
+                              setTimeout(() => forcePlay(), 50);
+                              setTimeout(() => forcePlay(), 100);
+                              setTimeout(() => forcePlay(), 200);
+                              setTimeout(() => forcePlay(), 400);
+                              setTimeout(() => forcePlay(), 800);
+                              setTimeout(() => forcePlay(), 1500);
+                              setTimeout(() => forcePlay(), 2500);
                             }
                           }}
                           onCanPlayThrough={() => {
