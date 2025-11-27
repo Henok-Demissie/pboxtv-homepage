@@ -64,9 +64,9 @@ export default function MoviesAndSeriesDetailsSections(props) {
         const checkInterval = setInterval(() => {
           if (videoRef.current) {
             clearInterval(checkInterval);
-            // Trigger re-check by updating a dependency or calling the play logic
+            // Retry setup when video element appears
             const v = videoRef.current;
-            if (v && !v.src && videoUrl) {
+            if (v && v.src !== videoUrl) {
               v.src = videoUrl;
               v.load();
             }
@@ -78,46 +78,30 @@ export default function MoviesAndSeriesDetailsSections(props) {
         return;
       }
       
-      // Ensure video has src set
-      if (!video.src && videoUrl) {
+      // Ensure video has src set and is configured
+      if (video.src !== videoUrl) {
         video.src = videoUrl;
         video.preload = 'auto';
         video.playbackRate = 1;
         video.muted = false;
         video.playsInline = true;
         video.setAttribute('webkit-playsinline', 'true');
+        video.setAttribute('playsinline', 'true');
         video.setAttribute('x5-playsinline', 'true');
         video.setAttribute('x5-video-player-fullscreen', 'false');
         video.removeAttribute('crossOrigin');
-        
-        // Ensure video is visible and not in background
-        video.style.display = 'block';
-        video.style.visibility = 'visible';
-        video.style.opacity = '1';
-        video.style.position = 'relative';
-        video.style.zIndex = '1';
-        
-        // Prevent automatic native fullscreen on iOS
-        if (video.webkitEnterFullscreen) {
-          video.webkitEnterFullscreen = () => {
-            console.log('Prevented automatic fullscreen on mobile');
-          };
-        }
-        
         video.load();
       }
       
-      // Ensure video stays visible even if src is already set
-      if (video.src) {
-        video.style.display = 'block';
-        video.style.visibility = 'visible';
-        video.style.opacity = '1';
-        video.style.position = 'relative';
-        video.style.zIndex = '1';
-      }
+      // Ensure video is visible
+      video.style.display = 'block';
+      video.style.visibility = 'visible';
+      video.style.opacity = '1';
+      video.style.position = 'relative';
+      video.style.zIndex = '1';
       
-      // Try to play with multiple attempts
-      const playVideo = () => {
+      // Try to play if video is ready
+      const tryPlay = () => {
         if (video && video.src && video.paused && !video.error) {
           const playPromise = video.play();
           if (playPromise !== undefined) {
@@ -128,24 +112,54 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 console.log('✅ Video auto-played successfully via useEffect');
               })
               .catch((err) => {
-                console.log('⚠️ Play failed in useEffect:', err);
-                // Will retry in event handlers (onCanPlay, onLoadedData, etc.)
+                console.log('⚠️ Play failed in useEffect:', err.message);
+                // Will retry in event handlers
               });
           }
         }
       };
       
-      // Try immediately if video is ready
+      // Try immediately if video has some data
       if (video.readyState >= 1) {
-        playVideo();
+        tryPlay();
       }
       
-      // Also try after delays to ensure src is fully set
-      setTimeout(playVideo, 100);
-      setTimeout(playVideo, 300);
-      setTimeout(playVideo, 600);
+      // Also try after delays
+      setTimeout(tryPlay, 200);
+      setTimeout(tryPlay, 500);
+      setTimeout(tryPlay, 1000);
     }
   }, [videoUrl, isPlayingMovie, isMobile]);
+
+  // Additional effect to ensure video plays when element is rendered
+  useEffect(() => {
+    if (isMobile && isPlayingMovie && videoUrl) {
+      const checkVideo = () => {
+        const video = videoRef.current;
+        if (video && video.src === videoUrl && video.paused && !video.error) {
+          // Video is ready but paused - try to play
+          video.play()
+            .then(() => {
+              setIsPlaying(true);
+              setIsLoadingPlayback(false);
+              console.log('✅ Video started playing via element check');
+            })
+            .catch((err) => {
+              console.log('⚠️ Play failed in element check:', err.message);
+            });
+        }
+      };
+      
+      // Check immediately and periodically
+      checkVideo();
+      const interval = setInterval(checkVideo, 500);
+      
+      // Clear after 5 seconds
+      setTimeout(() => clearInterval(interval), 5000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [isPlayingMovie, videoUrl, isMobile]);
 
   // Check if movie is in favorites
   useEffect(() => {
@@ -1103,87 +1117,119 @@ export default function MoviesAndSeriesDetailsSections(props) {
       setIsPlayingMovie(true);
       setVideoUrl(downloadUrl);
       
-      // Force React to flush state updates and render video element
-      // Then immediately set src and play within the same gesture context
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const video = videoRef.current;
-          if (video) {
-            // Set video properties synchronously
-            video.src = downloadUrl;
-            video.preload = 'auto';
-            video.muted = false;
-            video.playsInline = true;
-            video.setAttribute('webkit-playsinline', 'true');
-            video.setAttribute('x5-playsinline', 'true');
-            video.setAttribute('x5-video-player-fullscreen', 'false');
-            video.removeAttribute('crossOrigin');
-            
-            // Ensure video is visible and not in background
-            video.style.display = 'block';
-            video.style.visibility = 'visible';
-            video.style.opacity = '1';
-            video.style.position = 'relative';
-            video.style.zIndex = '1';
-            
-            // Prevent automatic native fullscreen on iOS
-            if (video.webkitEnterFullscreen) {
-              // Override webkitEnterFullscreen to prevent automatic fullscreen
-              video.webkitEnterFullscreen = () => {
-                console.log('Prevented automatic fullscreen on mobile');
-              };
-            }
-            
-            // Load the video
-            video.load();
-            
-            // Try to play immediately - this MUST happen within user gesture
-            const attemptPlay = () => {
-              if (video && video.src) {
-                const playPromise = video.play();
-                if (playPromise !== undefined) {
-                  playPromise
-                    .then(() => {
-                      setIsPlaying(true);
-                      setIsLoadingPlayback(false);
-                      console.log('✅ Mobile video playing successfully');
-                    })
-                    .catch((err) => {
-                      console.log('⚠️ Initial play failed, will retry:', err);
-                      // Retry after video loads more data
-                      const retryPlay = () => {
-                        if (video && video.readyState >= 1 && video.paused) {
-                          video.play()
-                            .then(() => {
-                              setIsPlaying(true);
-                              setIsLoadingPlayback(false);
-                              console.log('✅ Mobile video playing after retry');
-                            })
-                            .catch(() => {
-                              // Will retry in event handlers
-                            });
-                        }
-                      };
-                      setTimeout(retryPlay, 300);
-                      setTimeout(retryPlay, 800);
-                      setTimeout(retryPlay, 1500);
-                    });
-                }
-              }
-            };
-            
-            // Try immediately
-            attemptPlay();
-            
-            // Also try after a micro-delay to ensure src is set
-            setTimeout(attemptPlay, 50);
+      // Use a more direct approach - wait for video element, then play immediately
+      const setupAndPlayVideo = () => {
+        const video = videoRef.current;
+        
+        if (!video) {
+          // Video element not ready yet, try again very soon
+          setTimeout(setupAndPlayVideo, 10);
+          return;
+        }
+        
+        // Video element exists - configure it immediately
+        if (!video.src || video.src !== downloadUrl) {
+          video.src = downloadUrl;
+        }
+        
+        // Set all mobile-friendly attributes
+        video.preload = 'auto';
+        video.muted = false;
+        video.playsInline = true;
+        video.setAttribute('webkit-playsinline', 'true');
+        video.setAttribute('playsinline', 'true');
+        video.setAttribute('x5-playsinline', 'true');
+        video.setAttribute('x5-video-player-fullscreen', 'false');
+        video.removeAttribute('crossOrigin');
+        video.controls = false;
+        
+        // Ensure video is visible
+        video.style.display = 'block';
+        video.style.visibility = 'visible';
+        video.style.opacity = '1';
+        video.style.position = 'relative';
+        video.style.zIndex = '1';
+        video.style.width = '100%';
+        video.style.height = 'auto';
+        video.style.maxHeight = '50vh';
+        
+        // Prevent automatic native fullscreen on iOS
+        if (video.webkitEnterFullscreen) {
+          const originalEnterFullscreen = video.webkitEnterFullscreen.bind(video);
+          video.webkitEnterFullscreen = () => {
+            console.log('Prevented automatic fullscreen - using custom fullscreen instead');
+            toggleFullscreen();
+          };
+        }
+        
+        // Load the video
+        video.load();
+        
+        // Wait for video to be ready, then play
+        const tryPlay = () => {
+          if (!video || !video.src) return;
+          
+          // If video is already playing, we're done
+          if (!video.paused && video.readyState >= 2) {
+            setIsPlaying(true);
+            setIsLoadingPlayback(false);
+            return;
           }
-        });
-      });
+          
+          // Try to play
+          const playPromise = video.play();
+          if (playPromise !== undefined) {
+            playPromise
+              .then(() => {
+                setIsPlaying(true);
+                setIsLoadingPlayback(false);
+                console.log('✅ Mobile video playing successfully');
+              })
+              .catch((err) => {
+                console.log('⚠️ Play failed:', err.message);
+                // Retry when video has more data loaded
+                if (video.readyState < 2) {
+                  video.addEventListener('loadeddata', () => {
+                    video.play()
+                      .then(() => {
+                        setIsPlaying(true);
+                        setIsLoadingPlayback(false);
+                        console.log('✅ Mobile video playing after loadeddata');
+                      })
+                      .catch(() => {});
+                  }, { once: true });
+                } else {
+                  // Video has data but play failed - try again
+                  setTimeout(() => {
+                    if (video && video.readyState >= 1) {
+                      video.play()
+                        .then(() => {
+                          setIsPlaying(true);
+                          setIsLoadingPlayback(false);
+                        })
+                        .catch(() => {});
+                    }
+                  }, 500);
+                }
+              });
+          }
+        };
+        
+        // Try immediately
+        tryPlay();
+        
+        // Also try after short delays
+        setTimeout(tryPlay, 100);
+        setTimeout(tryPlay, 300);
+        setTimeout(tryPlay, 600);
+      };
       
-      // Handle URL shortening in background (non-blocking)
-      loadVideoUrl(bestSource, true).catch(err => {
-        console.error('Error in background URL loading:', err);
+      // Start setup immediately
+      setupAndPlayVideo();
+      
+      // Also use requestAnimationFrame as backup
+      requestAnimationFrame(() => {
+        requestAnimationFrame(setupAndPlayVideo);
       });
       
       return;
