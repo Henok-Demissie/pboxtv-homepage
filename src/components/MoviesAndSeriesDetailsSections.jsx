@@ -143,53 +143,67 @@ export default function MoviesAndSeriesDetailsSections(props) {
         containerRef.current.style.setProperty('position', 'relative', 'important');
       }
       
-      // Try to play with multiple attempts - be VERY aggressive
+      // Try to play with EXTREME aggression - MUST PLAY
       const playVideo = () => {
         if (video && video.src) {
-          // Ensure visibility before playing
+          // Ensure visibility before playing - FORCE IT
           if (isMobile) {
-            video.style.display = 'block';
-            video.style.visibility = 'visible';
-            video.style.opacity = '1';
-            video.style.zIndex = '1';
+            video.style.setProperty('display', 'block', 'important');
+            video.style.setProperty('visibility', 'visible', 'important');
+            video.style.setProperty('opacity', '1', 'important');
+            video.style.setProperty('z-index', '50', 'important');
+            video.style.setProperty('position', 'relative', 'important');
           }
           
-          // Try playing even if video hasn't fully loaded
-          const playPromise = video.play();
-          if (playPromise !== undefined) {
-            playPromise
-              .then(() => {
-                setIsPlaying(true);
-                setIsLoadingPlayback(false);
-                setVideoError(null);
-                // Ensure video is visible after playing starts
-                if (isMobile && video) {
-                  video.style.display = 'block';
-                  video.style.visibility = 'visible';
-                  video.style.opacity = '1';
-                }
-                console.log('✅ Video auto-played successfully via useEffect');
-              })
-              .catch((err) => {
-                console.log('⚠️ Play failed in useEffect, will retry:', err);
-                // Don't show error, just keep retrying
-              });
-          } else {
-            // If play() returns undefined, try again
-            setTimeout(() => playVideo(), 50);
+          // Try playing even if video hasn't fully loaded - PLAY NOW
+          try {
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+              playPromise
+                .then(() => {
+                  setIsPlaying(true);
+                  setIsLoadingPlayback(false);
+                  setVideoError(null);
+                  // Ensure video is visible after playing starts
+                  if (isMobile && video) {
+                    video.style.setProperty('display', 'block', 'important');
+                    video.style.setProperty('visibility', 'visible', 'important');
+                    video.style.setProperty('opacity', '1', 'important');
+                    video.style.setProperty('z-index', '50', 'important');
+                  }
+                  console.log('✅✅✅ Video PLAYING via useEffect!');
+                })
+                .catch(() => {
+                  // Keep retrying - NEVER GIVE UP
+                });
+            } else {
+              // If play() returns undefined, try again IMMEDIATELY
+              setTimeout(() => playVideo(), 1);
+            }
+          } catch (e) {
+            // Keep retrying
+            setTimeout(() => playVideo(), 5);
           }
         }
       };
       
-      // Try immediately - don't wait for readyState
+      // Try IMMEDIATELY - don't wait for readyState
       playVideo();
       
-      // Also try many times with increasing delays
+      // Try MANY times with very short delays - MUST PLAY
+      setTimeout(playVideo, 1);
+      setTimeout(playVideo, 5);
+      setTimeout(playVideo, 10);
+      setTimeout(playVideo, 20);
+      setTimeout(playVideo, 30);
       setTimeout(playVideo, 50);
+      setTimeout(playVideo, 75);
       setTimeout(playVideo, 100);
+      setTimeout(playVideo, 150);
       setTimeout(playVideo, 200);
-      setTimeout(playVideo, 400);
-      setTimeout(playVideo, 700);
+      setTimeout(playVideo, 300);
+      setTimeout(playVideo, 500);
+      setTimeout(playVideo, 800);
       setTimeout(playVideo, 1200);
       setTimeout(playVideo, 2000);
       setTimeout(playVideo, 3000);
@@ -1198,32 +1212,34 @@ export default function MoviesAndSeriesDetailsSections(props) {
       }
       
       // CRITICAL: Set video src and play SYNCHRONOUSLY within user gesture
-      // Use immediate execution, not requestAnimationFrame which delays too much
+      // Use immediate execution - NO delays, NO requestAnimationFrame
       const setupAndPlay = () => {
         // First, ensure video element exists or wait for it
         let video = videoRef.current;
         
         if (!video) {
-          // Video element not rendered yet, wait a tiny bit and try again
-          setTimeout(() => {
+          // Video element not rendered yet - check immediately multiple times
+          const checkVideo = () => {
             video = videoRef.current;
             if (video) {
               setupVideoAndPlay(video, downloadUrl);
             } else {
-              // Still not ready, try one more time
-              setTimeout(() => {
-                video = videoRef.current;
-                if (video) {
-                  setupVideoAndPlay(video, downloadUrl);
-                }
-              }, 50);
+              // Check again immediately
+              setTimeout(checkVideo, 1);
+              setTimeout(checkVideo, 5);
+              setTimeout(checkVideo, 10);
             }
-          }, 10);
+          };
+          checkVideo();
           return;
         }
         
+        // Video exists - play IMMEDIATELY
         setupVideoAndPlay(video, downloadUrl);
       };
+      
+      // Start IMMEDIATELY - no delays
+      setupAndPlay();
       
       const setupVideoAndPlay = (video, url) => {
         // Clear any error states and timeouts
@@ -1280,19 +1296,9 @@ export default function MoviesAndSeriesDetailsSections(props) {
           }, 100);
         }
         
-        // Load the video
-        video.load();
-        
-        // Try to play IMMEDIATELY - this MUST happen within user gesture
-        // Don't wait for load() to complete - try playing right away
-        const attemptPlay = () => {
-          if (video && video.src) {
-            // Ensure video is still visible
-            video.style.display = 'block';
-            video.style.visibility = 'visible';
-            video.style.opacity = '1';
-            
-            // Try playing even if video hasn't fully loaded yet
+        // CRITICAL: Try playing BEFORE load() - must happen within user gesture
+        const playImmediately = () => {
+          try {
             const playPromise = video.play();
             if (playPromise !== undefined) {
               playPromise
@@ -1300,31 +1306,71 @@ export default function MoviesAndSeriesDetailsSections(props) {
                   setIsPlaying(true);
                   setIsLoadingPlayback(false);
                   setVideoError(null);
-                  console.log('✅ Mobile video playing successfully');
-                  
-                  // Ensure video stays visible - FORCE visibility
-                  if (video) {
-                    video.style.setProperty('display', 'block', 'important');
-                    video.style.setProperty('visibility', 'visible', 'important');
-                    video.style.setProperty('opacity', '1', 'important');
-                    video.style.setProperty('z-index', '50', 'important');
-                    video.style.setProperty('position', 'relative', 'important');
-                  }
-                  
-                  // Ensure container stays visible
-                  if (containerRef.current) {
-                    containerRef.current.style.setProperty('display', 'flex', 'important');
-                    containerRef.current.style.setProperty('visibility', 'visible', 'important');
-                    containerRef.current.style.setProperty('opacity', '1', 'important');
-                    containerRef.current.style.setProperty('z-index', '50', 'important');
-                  }
+                  console.log('✅✅✅ Mobile video PLAYING IMMEDIATELY!');
                 })
-                .catch((err) => {
-                  console.log('⚠️ Play attempt failed, will retry:', err);
-                  // Don't show error, just retry aggressively
+                .catch(() => {
+                  // Will retry below
                 });
-            } else {
-              // If play() returns undefined, try again immediately
+            }
+          } catch (e) {
+            // Will retry below
+          }
+        };
+        
+        // Try playing IMMEDIATELY before load()
+        playImmediately();
+        
+        // Load the video
+        video.load();
+        
+        // Try playing IMMEDIATELY after setting src - within user gesture
+        playImmediately();
+        
+        // Try to play IMMEDIATELY - this MUST happen within user gesture
+        const attemptPlay = () => {
+          if (video && video.src) {
+            // Ensure video is still visible
+            video.style.setProperty('display', 'block', 'important');
+            video.style.setProperty('visibility', 'visible', 'important');
+            video.style.setProperty('opacity', '1', 'important');
+            
+            // Try playing even if video hasn't fully loaded yet
+            try {
+              const playPromise = video.play();
+              if (playPromise !== undefined) {
+                playPromise
+                  .then(() => {
+                    setIsPlaying(true);
+                    setIsLoadingPlayback(false);
+                    setVideoError(null);
+                    console.log('✅✅✅ Mobile video PLAYING!');
+                    
+                    // Ensure video stays visible - FORCE visibility
+                    if (video) {
+                      video.style.setProperty('display', 'block', 'important');
+                      video.style.setProperty('visibility', 'visible', 'important');
+                      video.style.setProperty('opacity', '1', 'important');
+                      video.style.setProperty('z-index', '50', 'important');
+                      video.style.setProperty('position', 'relative', 'important');
+                    }
+                    
+                    // Ensure container stays visible
+                    if (containerRef.current) {
+                      containerRef.current.style.setProperty('display', 'flex', 'important');
+                      containerRef.current.style.setProperty('visibility', 'visible', 'important');
+                      containerRef.current.style.setProperty('opacity', '1', 'important');
+                      containerRef.current.style.setProperty('z-index', '50', 'important');
+                    }
+                  })
+                  .catch(() => {
+                    // Keep retrying - don't give up
+                  });
+              } else {
+                // If play() returns undefined, try again immediately
+                setTimeout(() => attemptPlay(), 5);
+              }
+            } catch (e) {
+              // Keep retrying
               setTimeout(() => attemptPlay(), 10);
             }
           }
@@ -1333,16 +1379,23 @@ export default function MoviesAndSeriesDetailsSections(props) {
         // Try playing IMMEDIATELY - don't wait
         attemptPlay();
         
-        // Also try multiple times with very short delays
+        // Also try MANY times with very short delays - MUST play within user gesture
+        setTimeout(attemptPlay, 1);
+        setTimeout(attemptPlay, 5);
         setTimeout(attemptPlay, 10);
+        setTimeout(attemptPlay, 20);
+        setTimeout(attemptPlay, 30);
         setTimeout(attemptPlay, 50);
+        setTimeout(attemptPlay, 75);
         setTimeout(attemptPlay, 100);
+        setTimeout(attemptPlay, 150);
         setTimeout(attemptPlay, 200);
         setTimeout(attemptPlay, 300);
         setTimeout(attemptPlay, 500);
         setTimeout(attemptPlay, 800);
         setTimeout(attemptPlay, 1200);
         setTimeout(attemptPlay, 2000);
+        setTimeout(attemptPlay, 3000);
       };
       
       // Start setup immediately
