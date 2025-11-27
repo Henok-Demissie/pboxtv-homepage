@@ -84,78 +84,80 @@ export default function MoviesAndSeriesDetailsSections(props) {
   // Auto-play video on mobile when URL is set and video element is ready
   useEffect(() => {
     if (isMobile && videoUrl && isPlayingMovie) {
-      const video = videoRef.current;
-      
-      if (!video) {
-        // Video element not rendered yet, check again soon
-        const checkInterval = setInterval(() => {
-          if (videoRef.current) {
-            clearInterval(checkInterval);
-            // Trigger re-check by updating a dependency or calling the play logic
-            const v = videoRef.current;
-            if (v && !v.src && videoUrl) {
-              v.src = videoUrl;
-              v.load();
-            }
-          }
-        }, 50);
+      const setupAndPlayVideo = () => {
+        const video = videoRef.current;
         
-        // Clear interval after 2 seconds to avoid infinite checking
-        setTimeout(() => clearInterval(checkInterval), 2000);
-        return;
-      }
-      
-      // Ensure video has src set
-      if (!video.src && videoUrl) {
-        video.src = videoUrl;
+        if (!video) {
+          // Video element not rendered yet, check again VERY quickly
+          setTimeout(setupAndPlayVideo, 10);
+          setTimeout(setupAndPlayVideo, 50);
+          setTimeout(setupAndPlayVideo, 100);
+          return;
+        }
+        
+        // CRITICAL: Ensure video has src set - FORCE IT
+        if (video.src !== videoUrl) {
+          video.src = videoUrl;
+        }
+        
+        // Set ALL video properties IMMEDIATELY
         video.preload = 'auto';
         video.playbackRate = 1;
         video.muted = false;
+        video.volume = 1;
         video.playsInline = true;
         video.setAttribute('webkit-playsinline', 'true');
         video.setAttribute('x5-playsinline', 'true');
+        video.setAttribute('x5-video-player-type', 'h5');
+        video.setAttribute('x5-video-player-fullscreen', 'true');
         video.removeAttribute('crossOrigin');
-        video.load();
-      }
-      
-      // Ensure video is visible on mobile - FORCE visibility
-      if (video) {
+        
+        // FORCE video visibility - CRITICAL FOR MOBILE
         video.style.setProperty('display', 'block', 'important');
         video.style.setProperty('visibility', 'visible', 'important');
         video.style.setProperty('opacity', '1', 'important');
-        video.style.setProperty('z-index', '50', 'important');
+        video.style.setProperty('z-index', '20', 'important');
         video.style.setProperty('position', 'relative', 'important');
         video.style.setProperty('pointer-events', 'auto', 'important');
-        video.style.setProperty('top', 'auto', 'important');
-        video.style.setProperty('left', 'auto', 'important');
-        video.style.setProperty('right', 'auto', 'important');
-        video.style.setProperty('bottom', 'auto', 'important');
+        video.style.setProperty('width', '100%', 'important');
+        video.style.setProperty('height', '60vh', 'important');
+        video.style.setProperty('min-width', '100%', 'important');
+        video.style.setProperty('min-height', '60vh', 'important');
+        video.style.setProperty('max-width', '100%', 'important');
+        video.style.setProperty('max-height', '60vh', 'important');
+        video.style.setProperty('top', '0', 'important');
+        video.style.setProperty('left', '0', 'important');
+        video.style.setProperty('right', '0', 'important');
+        video.style.setProperty('bottom', '0', 'important');
         video.style.setProperty('margin', '0', 'important');
         video.style.setProperty('padding', '0', 'important');
-      }
-      
-      // Also ensure container is visible
-      if (containerRef.current) {
-        containerRef.current.style.setProperty('display', 'flex', 'important');
-        containerRef.current.style.setProperty('visibility', 'visible', 'important');
-        containerRef.current.style.setProperty('opacity', '1', 'important');
-        containerRef.current.style.setProperty('z-index', '50', 'important');
-        containerRef.current.style.setProperty('position', 'relative', 'important');
-      }
-      
-      // Try to play with EXTREME aggression - MUST PLAY
-      const playVideo = () => {
-        if (video && video.src) {
-          // Ensure visibility before playing - FORCE IT
-          if (isMobile) {
-            video.style.setProperty('display', 'block', 'important');
-            video.style.setProperty('visibility', 'visible', 'important');
-            video.style.setProperty('opacity', '1', 'important');
-            video.style.setProperty('z-index', '50', 'important');
-            video.style.setProperty('position', 'relative', 'important');
-          }
+        video.style.setProperty('background-color', '#000', 'important');
+        
+        // Also ensure container is visible
+        if (containerRef.current) {
+          containerRef.current.style.setProperty('display', 'flex', 'important');
+          containerRef.current.style.setProperty('visibility', 'visible', 'important');
+          containerRef.current.style.setProperty('opacity', '1', 'important');
+          containerRef.current.style.setProperty('z-index', '50', 'important');
+          containerRef.current.style.setProperty('position', 'relative', 'important');
+          containerRef.current.style.setProperty('width', '100%', 'important');
+          containerRef.current.style.setProperty('height', '60vh', 'important');
+          containerRef.current.style.setProperty('min-height', '60vh', 'important');
+          containerRef.current.style.setProperty('background-color', '#000', 'important');
+        }
+        
+        // Load video
+        video.load();
+        
+        // Try to play IMMEDIATELY - MUST PLAY WITHIN USER GESTURE
+        const attemptPlay = () => {
+          if (!video || !video.src) return;
           
-          // Try playing even if video hasn't fully loaded - PLAY NOW
+          // FORCE visibility again before each play attempt
+          video.style.setProperty('display', 'block', 'important');
+          video.style.setProperty('visibility', 'visible', 'important');
+          video.style.setProperty('opacity', '1', 'important');
+          
           try {
             const playPromise = video.play();
             if (playPromise !== undefined) {
@@ -164,49 +166,39 @@ export default function MoviesAndSeriesDetailsSections(props) {
                   setIsPlaying(true);
                   setIsLoadingPlayback(false);
                   setVideoError(null);
-                  // Ensure video is visible after playing starts
-                  if (isMobile && video) {
-                    video.style.setProperty('display', 'block', 'important');
-                    video.style.setProperty('visibility', 'visible', 'important');
-                    video.style.setProperty('opacity', '1', 'important');
-                    video.style.setProperty('z-index', '50', 'important');
-                  }
-                  console.log('✅✅✅ Video PLAYING via useEffect!');
+                  console.log('✅✅✅✅ MOBILE VIDEO IS PLAYING!!!');
+                  
+                  // FORCE visibility after playing
+                  video.style.setProperty('display', 'block', 'important');
+                  video.style.setProperty('visibility', 'visible', 'important');
+                  video.style.setProperty('opacity', '1', 'important');
                 })
-                .catch(() => {
-                  // Keep retrying - NEVER GIVE UP
+                .catch((err) => {
+                  console.log('Play attempt failed, retrying...', err);
                 });
-            } else {
-              // If play() returns undefined, try again IMMEDIATELY
-              setTimeout(() => playVideo(), 1);
             }
           } catch (e) {
-            // Keep retrying
-            setTimeout(() => playVideo(), 5);
+            console.log('Play error, retrying...', e);
           }
-        }
+        };
+        
+        // Try playing IMMEDIATELY - multiple times
+        attemptPlay();
+        setTimeout(attemptPlay, 1);
+        setTimeout(attemptPlay, 5);
+        setTimeout(attemptPlay, 10);
+        setTimeout(attemptPlay, 20);
+        setTimeout(attemptPlay, 50);
+        setTimeout(attemptPlay, 100);
+        setTimeout(attemptPlay, 200);
+        setTimeout(attemptPlay, 500);
+        setTimeout(attemptPlay, 1000);
+        setTimeout(attemptPlay, 2000);
+        setTimeout(attemptPlay, 3000);
       };
       
-      // Try IMMEDIATELY - don't wait for readyState
-      playVideo();
-      
-      // Try MANY times with very short delays - MUST PLAY
-      setTimeout(playVideo, 1);
-      setTimeout(playVideo, 5);
-      setTimeout(playVideo, 10);
-      setTimeout(playVideo, 20);
-      setTimeout(playVideo, 30);
-      setTimeout(playVideo, 50);
-      setTimeout(playVideo, 75);
-      setTimeout(playVideo, 100);
-      setTimeout(playVideo, 150);
-      setTimeout(playVideo, 200);
-      setTimeout(playVideo, 300);
-      setTimeout(playVideo, 500);
-      setTimeout(playVideo, 800);
-      setTimeout(playVideo, 1200);
-      setTimeout(playVideo, 2000);
-      setTimeout(playVideo, 3000);
+      // Start immediately
+      setupAndPlayVideo();
     }
   }, [videoUrl, isPlayingMovie, isMobile]);
 
@@ -1709,36 +1701,69 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           ref={videoRef}
                           className={`w-full h-full ${isFullscreen ? 'object-cover' : 'object-contain max-h-full'}`}
                           style={{
-                            maxWidth: '100%',
-                            maxHeight: isFullscreen ? '100vh' : (isMobile && isPlayingMovie ? '60vh' : isMobile ? '50vh' : '60vh'),
-                            width: isFullscreen ? '100vw' : (isMobile && isPlayingMovie ? '100%' : isMobile ? '100%' : 'auto'),
-                            height: isFullscreen ? '100vh' : (isMobile && isPlayingMovie ? '60vh' : isMobile ? 'auto' : 'auto'),
+                            ...(isFullscreen ? {
+                              width: '100vw',
+                              height: '100vh',
+                              maxWidth: '100vw',
+                              maxHeight: '100vh',
+                              minWidth: '100vw',
+                              minHeight: '100vh'
+                            } : isMobile && isPlayingMovie ? {
+                              width: '100%',
+                              height: '60vh',
+                              minWidth: '100%',
+                              minHeight: '60vh',
+                              maxWidth: '100%',
+                              maxHeight: '60vh'
+                            } : isMobile ? {
+                              width: '100%',
+                              height: '50vh',
+                              minWidth: '100%',
+                              minHeight: '200px',
+                              maxWidth: '100%',
+                              maxHeight: '50vh'
+                            } : {
+                              width: '100%',
+                              height: 'auto',
+                              minWidth: '100%',
+                              minHeight: '300px',
+                              maxWidth: '100%',
+                              maxHeight: '60vh'
+                            }),
                             backgroundColor: '#000',
                             objectFit: isFullscreen ? 'cover' : 'contain',
-                            position: isMobile && isPlayingMovie ? 'relative' : 'relative',
-                            zIndex: isMobile && isPlayingMovie ? 20 : 1,
+                            position: 'relative',
+                            zIndex: 20,
                             display: 'block !important',
                             visibility: 'visible !important',
                             opacity: '1 !important',
                             pointerEvents: 'auto',
-                            position: 'relative',
-                            // Optimize for mobile performance
+                            margin: 0,
+                            padding: 0,
+                            // FORCE visibility on mobile - CRITICAL
                             ...(isMobile && {
+                              width: '100% !important',
+                              height: '60vh !important',
+                              minWidth: '100% !important',
+                              minHeight: '60vh !important',
+                              maxWidth: '100% !important',
+                              maxHeight: '60vh !important',
+                              display: 'block !important',
+                              visibility: 'visible !important',
+                              opacity: '1 !important',
+                              zIndex: '20 !important',
+                              position: 'relative !important',
+                              top: '0 !important',
+                              left: '0 !important',
+                              right: '0 !important',
+                              bottom: '0 !important',
                               willChange: 'auto',
                               transform: 'translateZ(0)',
                               WebkitTransform: 'translateZ(0)',
                               backfaceVisibility: 'visible',
                               WebkitBackfaceVisibility: 'visible',
                               WebkitPlaysinline: true,
-                              playsInline: true,
-                              // Force visibility on mobile
-                              position: 'relative',
-                              top: 'auto',
-                              left: 'auto',
-                              right: 'auto',
-                              bottom: 'auto',
-                              margin: 0,
-                              padding: 0
+                              playsInline: true
                             })
                           }}
                           src={videoUrl}
