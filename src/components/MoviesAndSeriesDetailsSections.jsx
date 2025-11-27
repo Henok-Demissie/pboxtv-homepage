@@ -64,9 +64,9 @@ export default function MoviesAndSeriesDetailsSections(props) {
         const checkInterval = setInterval(() => {
           if (videoRef.current) {
             clearInterval(checkInterval);
-            // Retry setup when video element appears
+            // Trigger re-check by updating a dependency or calling the play logic
             const v = videoRef.current;
-            if (v && v.src !== videoUrl) {
+            if (v && !v.src && videoUrl) {
               v.src = videoUrl;
               v.load();
             }
@@ -78,124 +78,74 @@ export default function MoviesAndSeriesDetailsSections(props) {
         return;
       }
       
-      // Ensure video has src set and is configured
-      if (video.src !== videoUrl) {
+      // Ensure video has src set
+      if (!video.src && videoUrl) {
         video.src = videoUrl;
         video.preload = 'auto';
         video.playbackRate = 1;
         video.muted = false;
         video.playsInline = true;
         video.setAttribute('webkit-playsinline', 'true');
-        video.setAttribute('playsinline', 'true');
         video.setAttribute('x5-playsinline', 'true');
-        video.setAttribute('x5-video-player-fullscreen', 'false');
         video.removeAttribute('crossOrigin');
         video.load();
       }
       
-      // Ensure video is visible and properly positioned
-      video.style.display = 'block';
-      video.style.visibility = 'visible';
-      video.style.opacity = '1';
-      video.style.position = 'absolute';
-      video.style.top = '0';
-      video.style.left = '0';
-      video.style.width = '100%';
-      video.style.height = '100%';
-      video.style.maxWidth = '100%';
-      video.style.maxHeight = '100%';
-      video.style.zIndex = '1';
-      video.style.objectFit = 'contain';
-      video.style.backgroundColor = '#000';
+      // Ensure video is visible on mobile
+      if (video) {
+        video.style.display = 'block';
+        video.style.visibility = 'visible';
+        video.style.opacity = '1';
+        video.style.zIndex = '1';
+        video.style.position = 'relative';
+      }
       
-      // Try to play if video is ready
-      const tryPlay = () => {
+      // Try to play with multiple attempts
+      const playVideo = () => {
         if (video && video.src && video.paused && !video.error) {
+          // Ensure visibility before playing
+          if (isMobile) {
+            video.style.display = 'block';
+            video.style.visibility = 'visible';
+            video.style.opacity = '1';
+            video.style.zIndex = '1';
+          }
+          
           const playPromise = video.play();
           if (playPromise !== undefined) {
             playPromise
               .then(() => {
                 setIsPlaying(true);
                 setIsLoadingPlayback(false);
+                // Ensure video is visible after playing starts
+                if (isMobile && video) {
+                  video.style.display = 'block';
+                  video.style.visibility = 'visible';
+                  video.style.opacity = '1';
+                  // Scroll into view
+                  video.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
                 console.log('✅ Video auto-played successfully via useEffect');
               })
               .catch((err) => {
-                console.log('⚠️ Play failed in useEffect:', err.message);
-                // Will retry in event handlers
+                console.log('⚠️ Play failed in useEffect:', err);
+                // Will retry in event handlers (onCanPlay, onLoadedData, etc.)
               });
           }
         }
       };
       
-      // Try immediately if video has some data
+      // Try immediately if video is ready
       if (video.readyState >= 1) {
-        tryPlay();
+        playVideo();
       }
       
-      // Also try after delays
-      setTimeout(tryPlay, 200);
-      setTimeout(tryPlay, 500);
-      setTimeout(tryPlay, 1000);
+      // Also try after delays to ensure src is fully set
+      setTimeout(playVideo, 100);
+      setTimeout(playVideo, 300);
+      setTimeout(playVideo, 600);
     }
   }, [videoUrl, isPlayingMovie, isMobile]);
-
-  // Additional effect to ensure video plays when element is rendered
-  useEffect(() => {
-    if (isMobile && isPlayingMovie && videoUrl) {
-      const checkVideo = () => {
-        const video = videoRef.current;
-        const container = containerRef.current;
-        
-        if (video && video.src === videoUrl) {
-          // Ensure video is visible
-          video.style.display = 'block';
-          video.style.visibility = 'visible';
-          video.style.opacity = '1';
-          video.style.position = 'absolute';
-          video.style.top = '0';
-          video.style.left = '0';
-          video.style.width = '100%';
-          video.style.height = '100%';
-          video.style.zIndex = '1';
-          
-          // Ensure container is visible
-          if (container) {
-            container.style.display = 'block';
-            container.style.visibility = 'visible';
-            container.style.opacity = '1';
-            container.style.position = 'absolute';
-            container.style.top = '0';
-            container.style.left = '0';
-            container.style.width = '100%';
-            container.style.height = '100%';
-            container.style.zIndex = '1';
-          }
-          
-          if (video.paused && !video.error) {
-            // Video is ready but paused - try to play
-            video.play()
-              .then(() => {
-                setIsPlaying(true);
-                setIsLoadingPlayback(false);
-                console.log('✅ Video started playing via element check');
-              })
-              .catch((err) => {
-                console.log('⚠️ Play failed in element check:', err.message);
-              });
-          }
-        }
-      };
-      
-      // Check immediately and periodically
-      checkVideo();
-      const interval = setInterval(checkVideo, 500);
-      
-      // Clear after 5 seconds
-      setTimeout(() => clearInterval(interval), 5000);
-      
-      return () => clearInterval(interval);
-    }
-  }, [isPlayingMovie, videoUrl, isMobile]);
 
   // Check if movie is in favorites
   useEffect(() => {
@@ -1153,138 +1103,98 @@ export default function MoviesAndSeriesDetailsSections(props) {
       setIsPlayingMovie(true);
       setVideoUrl(downloadUrl);
       
-      // Use a more direct approach - wait for video element, then play immediately
-      const setupAndPlayVideo = () => {
-        const video = videoRef.current;
-        
-        if (!video) {
-          // Video element not ready yet, try again very soon
-          setTimeout(setupAndPlayVideo, 10);
-          return;
-        }
-        
-        // Video element exists - configure it immediately
-        if (!video.src || video.src !== downloadUrl) {
-          video.src = downloadUrl;
-        }
-        
-        // Set all mobile-friendly attributes
-        video.preload = 'auto';
-        video.muted = false;
-        video.playsInline = true;
-        video.setAttribute('webkit-playsinline', 'true');
-        video.setAttribute('playsinline', 'true');
-        video.setAttribute('x5-playsinline', 'true');
-        video.setAttribute('x5-video-player-fullscreen', 'false');
-        video.removeAttribute('crossOrigin');
-        video.controls = false;
-        
-        // Ensure container is properly sized
-        const container = containerRef.current;
-        if (container) {
-          container.style.display = 'block';
-          container.style.visibility = 'visible';
-          container.style.opacity = '1';
-          container.style.position = 'absolute';
-          container.style.top = '0';
-          container.style.left = '0';
-          container.style.width = '100%';
-          container.style.height = '100%';
-          container.style.zIndex = '1';
-        }
-        
-        // Ensure video is visible and properly positioned
-        video.style.display = 'block';
-        video.style.visibility = 'visible';
-        video.style.opacity = '1';
-        video.style.position = 'absolute';
-        video.style.top = '0';
-        video.style.left = '0';
-        video.style.width = '100%';
-        video.style.height = '100%';
-        video.style.maxWidth = '100%';
-        video.style.maxHeight = '100%';
-        video.style.zIndex = '1';
-        video.style.objectFit = 'contain';
-        video.style.backgroundColor = '#000';
-        
-        // Prevent automatic native fullscreen on iOS
-        if (video.webkitEnterFullscreen) {
-          const originalEnterFullscreen = video.webkitEnterFullscreen.bind(video);
-          video.webkitEnterFullscreen = () => {
-            console.log('Prevented automatic fullscreen - using custom fullscreen instead');
-            toggleFullscreen();
-          };
-        }
-        
-        // Load the video
-        video.load();
-        
-        // Wait for video to be ready, then play
-        const tryPlay = () => {
-          if (!video || !video.src) return;
-          
-          // If video is already playing, we're done
-          if (!video.paused && video.readyState >= 2) {
-            setIsPlaying(true);
-            setIsLoadingPlayback(false);
-            return;
-          }
-          
-          // Try to play
-          const playPromise = video.play();
-          if (playPromise !== undefined) {
-            playPromise
-              .then(() => {
-                setIsPlaying(true);
-                setIsLoadingPlayback(false);
-                console.log('✅ Mobile video playing successfully');
-              })
-              .catch((err) => {
-                console.log('⚠️ Play failed:', err.message);
-                // Retry when video has more data loaded
-                if (video.readyState < 2) {
-                  video.addEventListener('loadeddata', () => {
-                    video.play()
-                      .then(() => {
-                        setIsPlaying(true);
-                        setIsLoadingPlayback(false);
-                        console.log('✅ Mobile video playing after loadeddata');
-                      })
-                      .catch(() => {});
-                  }, { once: true });
-                } else {
-                  // Video has data but play failed - try again
-                  setTimeout(() => {
-                    if (video && video.readyState >= 1) {
-                      video.play()
-                        .then(() => {
-                          setIsPlaying(true);
-                          setIsLoadingPlayback(false);
-                        })
-                        .catch(() => {});
-                    }
-                  }, 500);
-                }
-              });
-          }
-        };
-        
-        // Try immediately
-        tryPlay();
-        
-        // Also try after short delays
-        setTimeout(tryPlay, 100);
-        setTimeout(tryPlay, 300);
-        setTimeout(tryPlay, 600);
-      };
-      
-      // Start setup immediately
-      setupAndPlayVideo();
-      
-      // Also use requestAnimationFrame as backup
+      // Force React to flush state updates and render video element
+      // Then immediately set src and play within the same gesture context
       requestAnimationFrame(() => {
-        requestAnimationFrame(setupAndPlayVideo);
+        requestAnimationFrame(() => {
+          const video = videoRef.current;
+          if (video) {
+            // Set video properties synchronously
+            video.src = downloadUrl;
+            video.preload = 'auto';
+            video.muted = false;
+            video.playsInline = true;
+            video.setAttribute('webkit-playsinline', 'true');
+            video.setAttribute('x5-playsinline', 'true');
+            video.removeAttribute('crossOrigin');
+            
+            // Load the video
+            video.load();
+            
+            // Ensure video is visible before playing
+            video.style.display = 'block';
+            video.style.visibility = 'visible';
+            video.style.opacity = '1';
+            video.style.zIndex = '1';
+            video.style.position = 'relative';
+            
+            // Try to play immediately - this MUST happen within user gesture
+            const attemptPlay = () => {
+              if (video && video.src) {
+                // Ensure visibility
+                video.style.display = 'block';
+                video.style.visibility = 'visible';
+                video.style.opacity = '1';
+                
+                const playPromise = video.play();
+                if (playPromise !== undefined) {
+                  playPromise
+                    .then(() => {
+                      setIsPlaying(true);
+                      setIsLoadingPlayback(false);
+                      // Ensure video is visible and scroll into view
+                      video.style.display = 'block';
+                      video.style.visibility = 'visible';
+                      video.style.opacity = '1';
+                      video.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      console.log('✅ Mobile video playing successfully');
+                    })
+                    .catch((err) => {
+                      console.log('⚠️ Initial play failed, will retry:', err);
+                      // Retry after video loads more data
+                      const retryPlay = () => {
+                        if (video && video.readyState >= 1 && video.paused) {
+                          // Ensure visibility before retry
+                          video.style.display = 'block';
+                          video.style.visibility = 'visible';
+                          video.style.opacity = '1';
+                          
+                          video.play()
+                            .then(() => {
+                              setIsPlaying(true);
+                              setIsLoadingPlayback(false);
+                              // Ensure visible after playing
+                              video.style.display = 'block';
+                              video.style.visibility = 'visible';
+                              video.style.opacity = '1';
+                              video.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              console.log('✅ Mobile video playing after retry');
+                            })
+                            .catch(() => {
+                              // Will retry in event handlers
+                            });
+                        }
+                      };
+                      setTimeout(retryPlay, 300);
+                      setTimeout(retryPlay, 800);
+                      setTimeout(retryPlay, 1500);
+                    });
+                }
+              }
+            };
+            
+            // Try immediately
+            attemptPlay();
+            
+            // Also try after a micro-delay to ensure src is set
+            setTimeout(attemptPlay, 50);
+          }
+        });
+      });
+      
+      // Handle URL shortening in background (non-blocking)
+      loadVideoUrl(bestSource, true).catch(err => {
+        console.error('Error in background URL loading:', err);
       });
       
       return;
@@ -1392,16 +1302,12 @@ export default function MoviesAndSeriesDetailsSections(props) {
               className="w-full relative shrink-0 bg-black rounded-2xl overflow-hidden"
               style={isMobile ? {
                 aspectRatio: '16/9',
-                height: '50vh',
                 maxHeight: '50vh',
-                minHeight: '200px',
-                position: 'relative'
+                minHeight: '200px'
               } : {
                 aspectRatio: '16/9',
-                height: '60vh',
                 maxHeight: '60vh',
-                minHeight: '300px',
-                position: 'relative'
+                minHeight: '300px'
               }}
             >
               {/* Favorite Button - Upper Right Corner */}
@@ -1460,34 +1366,34 @@ export default function MoviesAndSeriesDetailsSections(props) {
                     <>
                       <div 
                         ref={containerRef} 
-                        className={`absolute inset-0 w-full h-full bg-black ${isFullscreen ? 'fixed z-50' : ''}`}
-                        style={{
-                          ...(isFullscreen ? {
-                            width: '100vw',
-                            height: '100vh',
-                            minHeight: '100vh',
-                            maxHeight: '100vh',
-                            position: 'fixed',
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            zIndex: 9999
-                          } : {
-                            width: '100%',
-                            height: '100%',
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            display: 'block',
-                            visibility: 'visible',
-                            opacity: 1,
-                            zIndex: 1,
-                            overflow: 'hidden'
-                          })
-                        }}
+                        className={`relative w-full h-full flex items-center justify-center bg-black ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}
+                        style={isFullscreen ? {
+                          width: '100vw',
+                          height: '100vh',
+                          minHeight: '100vh',
+                          maxHeight: '100vh',
+                          position: 'fixed',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          zIndex: 9999
+                        } : (isMobile ? {
+                          minHeight: '200px',
+                          maxHeight: '50vh',
+                          width: '100%',
+                          position: 'relative',
+                          zIndex: 10,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        } : {
+                          minHeight: '300px',
+                          maxHeight: '60vh',
+                          width: '100%',
+                          position: 'relative',
+                          zIndex: 10
+                        })}
                         onTouchStart={() => {
                           setShowControls(true);
                           if (controlsTimeoutRef.current) {
@@ -1513,21 +1419,19 @@ export default function MoviesAndSeriesDetailsSections(props) {
                       >
                         <video
                           ref={videoRef}
-                          className={`${isFullscreen ? 'object-cover' : 'object-contain'}`}
+                          className={`w-full h-full ${isFullscreen ? 'object-cover' : 'object-contain max-h-full'}`}
                           style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
                             maxWidth: '100%',
-                            maxHeight: '100%',
+                            maxHeight: isFullscreen ? '100vh' : (isMobile ? '50vh' : '60vh'),
+                            width: isFullscreen ? '100vw' : (isMobile ? '100%' : 'auto'),
+                            height: isFullscreen ? '100vh' : (isMobile ? 'auto' : 'auto'),
                             backgroundColor: '#000',
                             objectFit: isFullscreen ? 'cover' : 'contain',
+                            position: 'relative',
+                            zIndex: 1,
                             display: 'block',
                             visibility: 'visible',
                             opacity: 1,
-                            zIndex: 1,
                             // Optimize for mobile performance
                             ...(isMobile && {
                               willChange: 'auto',
@@ -1548,7 +1452,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           webkit-playsinline="true"
                           x5-playsinline="true"
                           x5-video-player-type="h5"
-                          x5-video-player-fullscreen="false"
+                          x5-video-player-fullscreen="true"
                           x5-video-orientation="portrait"
                           controls={false}
                           muted={false}
@@ -1753,39 +1657,21 @@ export default function MoviesAndSeriesDetailsSections(props) {
                               errorTimeoutRef.current = null;
                             }
                             
-                            // On mobile, ensure video stays visible and in viewport
+                            // On mobile, ensure video is visible and in viewport
                             if (isMobile && videoRef.current) {
                               const video = videoRef.current;
+                              // Ensure video is visible
                               video.style.display = 'block';
                               video.style.visibility = 'visible';
                               video.style.opacity = '1';
-                              video.style.position = 'absolute';
-                              video.style.top = '0';
-                              video.style.left = '0';
-                              video.style.width = '100%';
-                              video.style.height = '100%';
-                              video.style.maxWidth = '100%';
-                              video.style.maxHeight = '100%';
                               video.style.zIndex = '1';
-                              video.style.objectFit = 'contain';
-                              video.style.backgroundColor = '#000';
-                              
-                              // Ensure container is visible
-                              if (containerRef.current) {
-                                containerRef.current.style.display = 'block';
-                                containerRef.current.style.visibility = 'visible';
-                                containerRef.current.style.opacity = '1';
-                                containerRef.current.style.position = 'relative';
-                                containerRef.current.style.zIndex = '1';
-                                containerRef.current.style.width = '100%';
-                                containerRef.current.style.height = '50vh';
-                                containerRef.current.style.minHeight = '200px';
-                                containerRef.current.style.maxHeight = '50vh';
-                              }
                               
                               // Scroll video into view if needed
-                              if (containerRef.current) {
-                                containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              video.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              
+                              // Prevent picture-in-picture on mobile
+                              if (video.requestPictureInPicture && document.pictureInPictureElement) {
+                                document.exitPictureInPicture().catch(() => {});
                               }
                             }
                             
@@ -2094,11 +1980,12 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 src={props.movieData.backdrop}
                 effect="black-and-white"
                 alt={props.movieData.title}
-                      className="w-full h-full rounded-2xl shrink-0 object-cover"
+                      className="w-full h-full rounded-2xl shrink-0 object-contain"
                       style={{
                         width: '100%',
                         height: '100%',
-                        objectFit: 'cover'
+                        objectFit: 'contain',
+                        display: 'block'
                       }}
                     />
                   </div>
