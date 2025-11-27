@@ -1121,32 +1121,15 @@ export default function MoviesAndSeriesDetailsSections(props) {
             // Load the video
             video.load();
             
-            // Ensure video is visible before playing
-            video.style.display = 'block';
-            video.style.visibility = 'visible';
-            video.style.opacity = '1';
-            video.style.zIndex = '1';
-            video.style.position = 'relative';
-            
             // Try to play immediately - this MUST happen within user gesture
             const attemptPlay = () => {
               if (video && video.src) {
-                // Ensure visibility
-                video.style.display = 'block';
-                video.style.visibility = 'visible';
-                video.style.opacity = '1';
-                
                 const playPromise = video.play();
                 if (playPromise !== undefined) {
                   playPromise
                     .then(() => {
                       setIsPlaying(true);
                       setIsLoadingPlayback(false);
-                      // Ensure video is visible and scroll into view
-                      video.style.display = 'block';
-                      video.style.visibility = 'visible';
-                      video.style.opacity = '1';
-                      video.scrollIntoView({ behavior: 'smooth', block: 'center' });
                       console.log('✅ Mobile video playing successfully');
                     })
                     .catch((err) => {
@@ -1154,20 +1137,10 @@ export default function MoviesAndSeriesDetailsSections(props) {
                       // Retry after video loads more data
                       const retryPlay = () => {
                         if (video && video.readyState >= 1 && video.paused) {
-                          // Ensure visibility before retry
-                          video.style.display = 'block';
-                          video.style.visibility = 'visible';
-                          video.style.opacity = '1';
-                          
                           video.play()
                             .then(() => {
                               setIsPlaying(true);
                               setIsLoadingPlayback(false);
-                              // Ensure visible after playing
-                              video.style.display = 'block';
-                              video.style.visibility = 'visible';
-                              video.style.opacity = '1';
-                              video.scrollIntoView({ behavior: 'smooth', block: 'center' });
                               console.log('✅ Mobile video playing after retry');
                             })
                             .catch(() => {
@@ -1980,12 +1953,12 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 src={props.movieData.backdrop}
                 effect="black-and-white"
                 alt={props.movieData.title}
-                      className="w-full h-full rounded-2xl shrink-0 object-contain"
+                      className="w-full h-full rounded-2xl shrink-0 object-cover"
                       style={{
                         width: '100%',
                         height: '100%',
-                        objectFit: 'contain',
-                        display: 'block'
+                        objectFit: 'cover',
+                        objectPosition: 'center 60%'
                       }}
                     />
                   </div>
