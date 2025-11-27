@@ -1547,6 +1547,52 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 )}
               </button>
 
+              {/* Poster Image - Always show as background until video is playing */}
+              {(!isPlayingMovie || !isPlaying || !videoRef.current || videoRef.current.paused || videoRef.current.readyState < 3) && (
+                <>
+                  <img
+                    src={props.movieData.backdrop || props.movieData.poster}
+                    alt={props.movieData.title}
+                    className="absolute inset-0 w-full h-full object-cover rounded-2xl z-10"
+                    loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      objectPosition: 'center 60%',
+                      display: 'block',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      zIndex: 10,
+                      opacity: isPlayingMovie && isPlaying ? 0 : 1,
+                      transition: 'opacity 0.3s ease-in-out'
+                    }}
+                    onLoad={(e) => {
+                      e.target.style.opacity = '1';
+                    }}
+                    onError={(e) => {
+                      if (props.movieData.poster && e.target.src !== props.movieData.poster) {
+                        e.target.src = props.movieData.poster;
+                      }
+                    }}
+                  />
+                  {/* Loading indicator when video is loading */}
+                  {isPlayingMovie && isLoadingPlayback && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-15 rounded-2xl">
+                      <div className="text-white text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500 mx-auto mb-4"></div>
+                        <p className="text-sm">Loading video...</p>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
               {/* Video Player - Show when playing */}
               {isPlayingMovie && videoUrl ? (
                 <>
@@ -1588,44 +1634,54 @@ export default function MoviesAndSeriesDetailsSections(props) {
                       <div 
                         ref={containerRef} 
                         className={`relative w-full h-full flex items-center justify-center bg-black ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}
-                        style={isFullscreen ? {
-                          width: '100vw',
-                          height: '100vh',
-                          minHeight: '100vh',
-                          maxHeight: '100vh',
-                          position: 'fixed',
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          zIndex: 9999
-                        } : (isMobile && isPlayingMovie ? {
-                          minHeight: '60vh',
-                          width: '100%',
-                          position: 'relative',
-                          zIndex: 50,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          height: 'auto',
-                          overflow: 'visible',
-                          backgroundColor: '#000'
-                        } : isMobile ? {
-                          minHeight: '200px',
-                          maxHeight: '50vh',
-                          width: '100%',
-                          position: 'relative',
-                          zIndex: 10,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        } : {
-                          minHeight: '300px',
-                          maxHeight: '60vh',
-                          width: '100%',
-                          position: 'relative',
-                          zIndex: 10
-                        })}
+                        style={{
+                          ...(isFullscreen ? {
+                            width: '100vw',
+                            height: '100vh',
+                            minHeight: '100vh',
+                            maxHeight: '100vh',
+                            position: 'fixed',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            zIndex: 9999,
+                            backgroundImage: `url(${props.movieData.backdrop || props.movieData.poster})`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center 60%',
+                            backgroundRepeat: 'no-repeat'
+                          } : (isMobile && isPlayingMovie ? {
+                            minHeight: '60vh',
+                            width: '100%',
+                            position: 'relative',
+                            zIndex: 50,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            height: 'auto',
+                            overflow: 'visible',
+                            backgroundColor: '#000',
+                            backgroundImage: `url(${props.movieData.backdrop || props.movieData.poster})`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center 60%',
+                            backgroundRepeat: 'no-repeat'
+                          } : isMobile ? {
+                            minHeight: '200px',
+                            maxHeight: '50vh',
+                            width: '100%',
+                            position: 'relative',
+                            zIndex: 10,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          } : {
+                            minHeight: '300px',
+                            maxHeight: '60vh',
+                            width: '100%',
+                            position: 'relative',
+                            zIndex: 10
+                          }))
+                        }}
                         onTouchStart={() => {
                           setShowControls(true);
                           if (controlsTimeoutRef.current) {
@@ -1660,11 +1716,12 @@ export default function MoviesAndSeriesDetailsSections(props) {
                             backgroundColor: '#000',
                             objectFit: isFullscreen ? 'cover' : 'contain',
                             position: isMobile && isPlayingMovie ? 'relative' : 'relative',
-                            zIndex: isMobile && isPlayingMovie ? 50 : 1,
+                            zIndex: isMobile && isPlayingMovie ? 20 : 1,
                             display: 'block !important',
                             visibility: 'visible !important',
                             opacity: '1 !important',
                             pointerEvents: 'auto',
+                            position: 'relative',
                             // Optimize for mobile performance
                             ...(isMobile && {
                               willChange: 'auto',
@@ -2282,38 +2339,6 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 </div>
               </div>
 
-              <img
-                src={props.movieData.backdrop}
-                alt={props.movieData.title}
-                className="w-full h-full rounded-2xl shrink-0 object-cover"
-                loading="eager"
-                fetchPriority="high"
-                decoding="async"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  objectPosition: 'center 60%',
-                  display: 'block',
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0
-                }}
-                onLoad={(e) => {
-                  // Image loaded successfully
-                  e.target.style.opacity = '1';
-                }}
-                onError={(e) => {
-                  // Fallback to poster if backdrop fails
-                  if (props.movieData.poster && e.target.src !== props.movieData.poster) {
-                    e.target.src = props.movieData.poster;
-                  } else {
-                    e.target.style.opacity = '0.5';
-                  }
-                }}
-              />
                   </div>
                 </>
               )}
