@@ -1660,7 +1660,10 @@ export default function MoviesAndSeriesDetailsSections(props) {
                         
                         {/* Custom Controls Overlay */}
                         <div 
-                          className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 z-20 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
+                          className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent ${isMobile ? 'p-3' : 'p-4'} z-20 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
+                          style={{
+                            pointerEvents: showControls ? 'auto' : 'none'
+                          }}
                           onTouchStart={(e) => {
                             e.stopPropagation();
                             setShowControls(true);
@@ -1699,14 +1702,14 @@ export default function MoviesAndSeriesDetailsSections(props) {
                               }}
                             />
                             {/* Time Display */}
-                            <span className="text-white text-sm font-medium min-w-[100px] text-right">
+                            <span className={`text-white ${isMobile ? 'text-xs' : 'text-sm'} font-medium ${isMobile ? 'min-w-[80px]' : 'min-w-[100px]'} text-right flex-shrink-0`}>
                               {formatTime(currentTime)} / {formatTime(duration)}
                             </span>
                           </div>
                           
                           {/* Control Buttons */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
+                          <div className="flex items-center justify-between w-full">
+                            <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'} flex-shrink-0`}>
                               {/* Play/Pause */}
                               <button
                                 onClick={(e) => {
@@ -1721,7 +1724,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                                 title={isPlaying ? "Pause" : "Play"}
                                 style={{ WebkitTapHighlightColor: 'transparent' }}
                               >
-                                {isPlaying ? <BiPause size={24} /> : <BiPlay size={24} />}
+                                {isPlaying ? <BiPause size={isMobile ? 22 : 24} /> : <BiPlay size={isMobile ? 22 : 24} />}
                               </button>
 
                               {/* Skip Backward 10s */}
@@ -1738,7 +1741,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                                 title="Rewind 10 seconds"
                                 style={{ WebkitTapHighlightColor: 'transparent' }}
                               >
-                                <BiSkipPrevious size={24} />
+                                <BiSkipPrevious size={isMobile ? 22 : 24} />
                               </button>
 
                               {/* Skip Forward 10s */}
@@ -1755,11 +1758,11 @@ export default function MoviesAndSeriesDetailsSections(props) {
                                 title="Forward 10 seconds"
                                 style={{ WebkitTapHighlightColor: 'transparent' }}
                               >
-                                <BiSkipNext size={24} />
+                                <BiSkipNext size={isMobile ? 22 : 24} />
                               </button>
 
                               {/* Volume Control */}
-                              <div className="flex items-center gap-2">
+                              <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-2'}`}>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -1773,35 +1776,37 @@ export default function MoviesAndSeriesDetailsSections(props) {
                                   title={isMuted ? "Unmute" : "Mute"}
                                   style={{ WebkitTapHighlightColor: 'transparent' }}
                                 >
-                                  {isMuted ? <BiVolumeMute size={20} /> : <BiVolumeFull size={20} />}
+                                  {isMuted ? <BiVolumeMute size={isMobile ? 18 : 20} /> : <BiVolumeFull size={isMobile ? 18 : 20} />}
                                 </button>
-                                <input
-                                  type="range"
-                                  min="0"
-                                  max="1"
-                                  step="0.01"
-                                  value={isMuted ? 0 : volume}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    handleVolumeChange(e);
-                                  }}
-                                  onTouchStart={(e) => {
-                                    e.stopPropagation();
-                                    setShowControls(true);
-                                  }}
-                                  onMouseDown={(e) => e.stopPropagation()}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="w-20 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-red-600 touch-manipulation"
-                                  style={{
-                                    background: `linear-gradient(to right, #dc2626 0%, #dc2626 ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.2) ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.2) 100%)`,
-                                    WebkitTapHighlightColor: 'transparent'
-                                  }}
-                                />
+                                {!isMobile && (
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value={isMuted ? 0 : volume}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      handleVolumeChange(e);
+                                    }}
+                                    onTouchStart={(e) => {
+                                      e.stopPropagation();
+                                      setShowControls(true);
+                                    }}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-20 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-red-600 touch-manipulation"
+                                    style={{
+                                      background: `linear-gradient(to right, #dc2626 0%, #dc2626 ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.2) ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.2) 100%)`,
+                                      WebkitTapHighlightColor: 'transparent'
+                                    }}
+                                  />
+                                )}
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
-                              {/* Fullscreen */}
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {/* Fullscreen - Always visible on mobile */}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1813,9 +1818,16 @@ export default function MoviesAndSeriesDetailsSections(props) {
                                 }}
                                 className="text-white hover:text-red-400 active:text-red-500 transition-colors p-2 touch-manipulation"
                                 title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-                                style={{ WebkitTapHighlightColor: 'transparent' }}
+                                style={{ 
+                                  WebkitTapHighlightColor: 'transparent',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  minWidth: isMobile ? '44px' : 'auto',
+                                  minHeight: isMobile ? '44px' : 'auto'
+                                }}
                               >
-                                {isFullscreen ? <BiExitFullscreen size={20} /> : <BiFullscreen size={20} />}
+                                {isFullscreen ? <BiExitFullscreen size={isMobile ? 22 : 20} /> : <BiFullscreen size={isMobile ? 22 : 20} />}
                               </button>
                             </div>
                           </div>
