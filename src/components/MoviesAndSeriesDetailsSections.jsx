@@ -87,8 +87,33 @@ export default function MoviesAndSeriesDetailsSections(props) {
         video.playsInline = true;
         video.setAttribute('webkit-playsinline', 'true');
         video.setAttribute('x5-playsinline', 'true');
+        video.setAttribute('x5-video-player-fullscreen', 'false');
         video.removeAttribute('crossOrigin');
+        
+        // Ensure video is visible and not in background
+        video.style.display = 'block';
+        video.style.visibility = 'visible';
+        video.style.opacity = '1';
+        video.style.position = 'relative';
+        video.style.zIndex = '1';
+        
+        // Prevent automatic native fullscreen on iOS
+        if (video.webkitEnterFullscreen) {
+          video.webkitEnterFullscreen = () => {
+            console.log('Prevented automatic fullscreen on mobile');
+          };
+        }
+        
         video.load();
+      }
+      
+      // Ensure video stays visible even if src is already set
+      if (video.src) {
+        video.style.display = 'block';
+        video.style.visibility = 'visible';
+        video.style.opacity = '1';
+        video.style.position = 'relative';
+        video.style.zIndex = '1';
       }
       
       // Try to play with multiple attempts
@@ -1091,7 +1116,23 @@ export default function MoviesAndSeriesDetailsSections(props) {
             video.playsInline = true;
             video.setAttribute('webkit-playsinline', 'true');
             video.setAttribute('x5-playsinline', 'true');
+            video.setAttribute('x5-video-player-fullscreen', 'false');
             video.removeAttribute('crossOrigin');
+            
+            // Ensure video is visible and not in background
+            video.style.display = 'block';
+            video.style.visibility = 'visible';
+            video.style.opacity = '1';
+            video.style.position = 'relative';
+            video.style.zIndex = '1';
+            
+            // Prevent automatic native fullscreen on iOS
+            if (video.webkitEnterFullscreen) {
+              // Override webkitEnterFullscreen to prevent automatic fullscreen
+              video.webkitEnterFullscreen = () => {
+                console.log('Prevented automatic fullscreen on mobile');
+              };
+            }
             
             // Load the video
             video.load();
@@ -1315,26 +1356,37 @@ export default function MoviesAndSeriesDetailsSections(props) {
                       <div 
                         ref={containerRef} 
                         className={`relative w-full h-full flex items-center justify-center bg-black ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}
-                        style={isFullscreen ? {
-                          width: '100vw',
-                          height: '100vh',
-                          minHeight: '100vh',
-                          maxHeight: '100vh',
-                          position: 'fixed',
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          zIndex: 9999
-                        } : (isMobile ? {
-                          minHeight: '200px',
-                          maxHeight: '50vh',
-                          width: '100%'
-                        } : {
-                          minHeight: '300px',
-                          maxHeight: '60vh',
-                          width: '100%'
-                        })}
+                        style={{
+                          ...(isFullscreen ? {
+                            width: '100vw',
+                            height: '100vh',
+                            minHeight: '100vh',
+                            maxHeight: '100vh',
+                            position: 'fixed',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            zIndex: 9999
+                          } : (isMobile ? {
+                            minHeight: '200px',
+                            maxHeight: '50vh',
+                            width: '100%',
+                            position: 'relative',
+                            display: 'flex',
+                            visibility: 'visible',
+                            opacity: 1,
+                            zIndex: 1
+                          } : {
+                            minHeight: '300px',
+                            maxHeight: '60vh',
+                            width: '100%',
+                            position: 'relative',
+                            display: 'flex',
+                            visibility: 'visible',
+                            opacity: 1
+                          }))
+                        }}
                         onTouchStart={() => {
                           setShowControls(true);
                           if (controlsTimeoutRef.current) {
@@ -1364,19 +1416,24 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           style={{
                             maxWidth: '100%',
                             maxHeight: isFullscreen ? '100vh' : (isMobile ? '50vh' : '60vh'),
-                            width: isFullscreen ? '100vw' : 'auto',
-                            height: isFullscreen ? '100vh' : 'auto',
+                            width: isFullscreen ? '100vw' : (isMobile ? '100%' : 'auto'),
+                            height: isFullscreen ? '100vh' : (isMobile ? 'auto' : 'auto'),
                             backgroundColor: '#000',
                             objectFit: isFullscreen ? 'cover' : 'contain',
+                            display: 'block',
+                            visibility: 'visible',
+                            opacity: 1,
+                            position: 'relative',
+                            zIndex: 1,
                             // Optimize for mobile performance
                             ...(isMobile && {
                               willChange: 'auto',
                               transform: 'translateZ(0)',
                               WebkitTransform: 'translateZ(0)',
-                              backfaceVisibility: 'hidden',
-                              WebkitBackfaceVisibility: 'hidden',
-                              perspective: '1000px',
-                              WebkitPerspective: '1000px'
+                              backfaceVisibility: 'visible',
+                              WebkitBackfaceVisibility: 'visible',
+                              WebkitPlaysinline: true,
+                              playsInline: true
                             })
                           }}
                           src={videoUrl}
@@ -1388,7 +1445,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           webkit-playsinline="true"
                           x5-playsinline="true"
                           x5-video-player-type="h5"
-                          x5-video-player-fullscreen="true"
+                          x5-video-player-fullscreen="false"
                           x5-video-orientation="portrait"
                           controls={false}
                           muted={false}
@@ -1592,6 +1649,29 @@ export default function MoviesAndSeriesDetailsSections(props) {
                               clearTimeout(errorTimeoutRef.current);
                               errorTimeoutRef.current = null;
                             }
+                            
+                            // On mobile, ensure video stays visible and in viewport
+                            if (isMobile && videoRef.current) {
+                              const video = videoRef.current;
+                              video.style.display = 'block';
+                              video.style.visibility = 'visible';
+                              video.style.opacity = '1';
+                              video.style.position = 'relative';
+                              video.style.zIndex = '1';
+                              
+                              // Ensure container is visible
+                              if (containerRef.current) {
+                                containerRef.current.style.display = 'flex';
+                                containerRef.current.style.visibility = 'visible';
+                                containerRef.current.style.opacity = '1';
+                                containerRef.current.style.position = 'relative';
+                                containerRef.current.style.zIndex = '1';
+                              }
+                              
+                              // Scroll video into view if needed
+                              video.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                            
                             setShowControls(true);
                             if (controlsTimeoutRef.current) {
                               clearTimeout(controlsTimeoutRef.current);
