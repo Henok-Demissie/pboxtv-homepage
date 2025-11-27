@@ -118,13 +118,29 @@ export default function MoviesAndSeriesDetailsSections(props) {
         video.load();
       }
       
-      // Ensure video is visible on mobile
+      // Ensure video is visible on mobile - FORCE visibility
       if (video) {
-        video.style.display = 'block';
-        video.style.visibility = 'visible';
-        video.style.opacity = '1';
-        video.style.zIndex = '1';
-        video.style.position = 'relative';
+        video.style.setProperty('display', 'block', 'important');
+        video.style.setProperty('visibility', 'visible', 'important');
+        video.style.setProperty('opacity', '1', 'important');
+        video.style.setProperty('z-index', '50', 'important');
+        video.style.setProperty('position', 'relative', 'important');
+        video.style.setProperty('pointer-events', 'auto', 'important');
+        video.style.setProperty('top', 'auto', 'important');
+        video.style.setProperty('left', 'auto', 'important');
+        video.style.setProperty('right', 'auto', 'important');
+        video.style.setProperty('bottom', 'auto', 'important');
+        video.style.setProperty('margin', '0', 'important');
+        video.style.setProperty('padding', '0', 'important');
+      }
+      
+      // Also ensure container is visible
+      if (containerRef.current) {
+        containerRef.current.style.setProperty('display', 'flex', 'important');
+        containerRef.current.style.setProperty('visibility', 'visible', 'important');
+        containerRef.current.style.setProperty('opacity', '1', 'important');
+        containerRef.current.style.setProperty('z-index', '50', 'important');
+        containerRef.current.style.setProperty('position', 'relative', 'important');
       }
       
       // Try to play with multiple attempts - be VERY aggressive
@@ -1234,19 +1250,29 @@ export default function MoviesAndSeriesDetailsSections(props) {
         video.setAttribute('x5-video-player-fullscreen', 'true');
         video.removeAttribute('crossOrigin');
         
-        // Ensure video is visible
-        video.style.display = 'block';
-        video.style.visibility = 'visible';
-        video.style.opacity = '1';
-        video.style.zIndex = '1';
-        video.style.position = 'relative';
+        // Ensure video is visible - FORCE visibility with important flags
+        video.style.setProperty('display', 'block', 'important');
+        video.style.setProperty('visibility', 'visible', 'important');
+        video.style.setProperty('opacity', '1', 'important');
+        video.style.setProperty('z-index', '50', 'important');
+        video.style.setProperty('position', 'relative', 'important');
+        video.style.setProperty('pointer-events', 'auto', 'important');
+        video.style.setProperty('top', 'auto', 'important');
+        video.style.setProperty('left', 'auto', 'important');
+        video.style.setProperty('right', 'auto', 'important');
+        video.style.setProperty('bottom', 'auto', 'important');
+        video.style.setProperty('margin', '0', 'important');
+        video.style.setProperty('padding', '0', 'important');
         
         // Ensure container is visible and scroll into view
         if (containerRef.current) {
-          containerRef.current.style.display = 'flex';
-          containerRef.current.style.visibility = 'visible';
-          containerRef.current.style.opacity = '1';
-          // Scroll container into view smoothly
+          containerRef.current.style.setProperty('display', 'flex', 'important');
+          containerRef.current.style.setProperty('visibility', 'visible', 'important');
+          containerRef.current.style.setProperty('opacity', '1', 'important');
+          containerRef.current.style.setProperty('z-index', '50', 'important');
+          containerRef.current.style.setProperty('position', 'relative', 'important');
+          containerRef.current.style.setProperty('background-color', '#000', 'important');
+          // Scroll container into view immediately
           setTimeout(() => {
             if (containerRef.current) {
               containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1276,11 +1302,21 @@ export default function MoviesAndSeriesDetailsSections(props) {
                   setVideoError(null);
                   console.log('✅ Mobile video playing successfully');
                   
-                  // Ensure video stays visible
+                  // Ensure video stays visible - FORCE visibility
                   if (video) {
-                    video.style.display = 'block';
-                    video.style.visibility = 'visible';
-                    video.style.opacity = '1';
+                    video.style.setProperty('display', 'block', 'important');
+                    video.style.setProperty('visibility', 'visible', 'important');
+                    video.style.setProperty('opacity', '1', 'important');
+                    video.style.setProperty('z-index', '50', 'important');
+                    video.style.setProperty('position', 'relative', 'important');
+                  }
+                  
+                  // Ensure container stays visible
+                  if (containerRef.current) {
+                    containerRef.current.style.setProperty('display', 'flex', 'important');
+                    containerRef.current.style.setProperty('visibility', 'visible', 'important');
+                    containerRef.current.style.setProperty('opacity', '1', 'important');
+                    containerRef.current.style.setProperty('z-index', '50', 'important');
                   }
                 })
                 .catch((err) => {
@@ -1419,13 +1455,19 @@ export default function MoviesAndSeriesDetailsSections(props) {
         <>
           <div className={`grid ${isMobile && isPlayingMovie ? 'grid-cols-1' : 'lg:grid-cols-2'} content-center items-center gap-6 lg:gap-8`}>
             <div
-              className={`w-full relative shrink-0 bg-black rounded-2xl overflow-hidden ${isMobile && isPlayingMovie ? 'col-span-1' : ''}`}
+              className={`w-full relative shrink-0 bg-black rounded-2xl ${isMobile && isPlayingMovie ? 'col-span-1 overflow-visible' : 'overflow-hidden'}`}
               style={isMobile && isPlayingMovie ? {
                 width: '100%',
                 height: 'auto',
                 minHeight: '60vh',
                 maxHeight: 'none',
-                aspectRatio: '16/9'
+                aspectRatio: '16/9',
+                zIndex: 50,
+                position: 'relative',
+                display: 'block',
+                visibility: 'visible',
+                opacity: 1,
+                backgroundColor: '#000'
               } : isMobile ? {
                 aspectRatio: '16/9',
                 maxHeight: '50vh',
@@ -1508,11 +1550,13 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           minHeight: '60vh',
                           width: '100%',
                           position: 'relative',
-                          zIndex: 10,
+                          zIndex: 50,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          height: 'auto'
+                          height: 'auto',
+                          overflow: 'visible',
+                          backgroundColor: '#000'
                         } : isMobile ? {
                           minHeight: '200px',
                           maxHeight: '50vh',
@@ -1562,11 +1606,12 @@ export default function MoviesAndSeriesDetailsSections(props) {
                             height: isFullscreen ? '100vh' : (isMobile && isPlayingMovie ? '60vh' : isMobile ? 'auto' : 'auto'),
                             backgroundColor: '#000',
                             objectFit: isFullscreen ? 'cover' : 'contain',
-                            position: 'relative',
-                            zIndex: 1,
-                            display: 'block',
-                            visibility: 'visible',
-                            opacity: 1,
+                            position: isMobile && isPlayingMovie ? 'relative' : 'relative',
+                            zIndex: isMobile && isPlayingMovie ? 50 : 1,
+                            display: 'block !important',
+                            visibility: 'visible !important',
+                            opacity: '1 !important',
+                            pointerEvents: 'auto',
                             // Optimize for mobile performance
                             ...(isMobile && {
                               willChange: 'auto',
@@ -1575,7 +1620,15 @@ export default function MoviesAndSeriesDetailsSections(props) {
                               backfaceVisibility: 'visible',
                               WebkitBackfaceVisibility: 'visible',
                               WebkitPlaysinline: true,
-                              playsInline: true
+                              playsInline: true,
+                              // Force visibility on mobile
+                              position: 'relative',
+                              top: 'auto',
+                              left: 'auto',
+                              right: 'auto',
+                              bottom: 'auto',
+                              margin: 0,
+                              padding: 0
                             })
                           }}
                           src={videoUrl}
@@ -1648,11 +1701,21 @@ export default function MoviesAndSeriesDetailsSections(props) {
                               clearTimeout(errorTimeoutRef.current);
                               errorTimeoutRef.current = null;
                             }
-                            // Ensure video is visible and ready
+                            // Ensure video is visible and ready - FORCE visibility
                             if (videoRef.current) {
-                              videoRef.current.style.display = 'block';
-                              videoRef.current.style.visibility = 'visible';
-                              videoRef.current.style.opacity = '1';
+                              videoRef.current.style.setProperty('display', 'block', 'important');
+                              videoRef.current.style.setProperty('visibility', 'visible', 'important');
+                              videoRef.current.style.setProperty('opacity', '1', 'important');
+                              videoRef.current.style.setProperty('z-index', '50', 'important');
+                              videoRef.current.style.setProperty('position', 'relative', 'important');
+                            }
+                            
+                            // Ensure container is visible
+                            if (containerRef.current) {
+                              containerRef.current.style.setProperty('display', 'flex', 'important');
+                              containerRef.current.style.setProperty('visibility', 'visible', 'important');
+                              containerRef.current.style.setProperty('opacity', '1', 'important');
+                              containerRef.current.style.setProperty('z-index', '50', 'important');
                             }
                             if (videoRef.current) {
                               setDuration(videoRef.current.duration);
@@ -1732,11 +1795,21 @@ export default function MoviesAndSeriesDetailsSections(props) {
                               clearTimeout(errorTimeoutRef.current);
                               errorTimeoutRef.current = null;
                             }
-                            // Ensure video is visible
+                            // Ensure video is visible - FORCE visibility
                             if (videoRef.current) {
-                              videoRef.current.style.display = 'block';
-                              videoRef.current.style.visibility = 'visible';
-                              videoRef.current.style.opacity = '1';
+                              videoRef.current.style.setProperty('display', 'block', 'important');
+                              videoRef.current.style.setProperty('visibility', 'visible', 'important');
+                              videoRef.current.style.setProperty('opacity', '1', 'important');
+                              videoRef.current.style.setProperty('z-index', '50', 'important');
+                              videoRef.current.style.setProperty('position', 'relative', 'important');
+                            }
+                            
+                            // Ensure container is visible
+                            if (containerRef.current) {
+                              containerRef.current.style.setProperty('display', 'flex', 'important');
+                              containerRef.current.style.setProperty('visibility', 'visible', 'important');
+                              containerRef.current.style.setProperty('opacity', '1', 'important');
+                              containerRef.current.style.setProperty('z-index', '50', 'important');
                             }
                             if (videoRef.current) {
                               setDuration(videoRef.current.duration);
@@ -1809,6 +1882,23 @@ export default function MoviesAndSeriesDetailsSections(props) {
                             if (errorTimeoutRef.current) {
                               clearTimeout(errorTimeoutRef.current);
                               errorTimeoutRef.current = null;
+                            }
+                            
+                            // FORCE video visibility when playing
+                            if (videoRef.current) {
+                              videoRef.current.style.setProperty('display', 'block', 'important');
+                              videoRef.current.style.setProperty('visibility', 'visible', 'important');
+                              videoRef.current.style.setProperty('opacity', '1', 'important');
+                              videoRef.current.style.setProperty('z-index', '50', 'important');
+                              videoRef.current.style.setProperty('position', 'relative', 'important');
+                            }
+                            
+                            // FORCE container visibility
+                            if (containerRef.current) {
+                              containerRef.current.style.setProperty('display', 'flex', 'important');
+                              containerRef.current.style.setProperty('visibility', 'visible', 'important');
+                              containerRef.current.style.setProperty('opacity', '1', 'important');
+                              containerRef.current.style.setProperty('z-index', '50', 'important');
                             }
                             
                             // On mobile, ensure video is visible and in viewport
