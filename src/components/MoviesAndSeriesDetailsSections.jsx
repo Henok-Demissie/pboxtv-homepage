@@ -2405,7 +2405,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           </div>
                         </div>
                       )}
-                    </div>
+            </div>
 
             <div className={`space-y-4 sm:p-2 ${isMobile && isPlayingMovie ? 'hidden' : ''}`}>
               {props.movieData.genres && (
