@@ -2325,13 +2325,13 @@ export default function MoviesAndSeriesDetailsSections(props) {
                             pointerEvents: 'auto',
                             cursor: 'pointer'
                           }}
-                        >
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
+            >
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
 
                           <div className="absolute z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
-                            <div className="relative">
-                              <div className="absolute inset-0 bg-white/20 rounded-full animate-pulse"></div>
-                              <div className="absolute inset-0 bg-white/15 rounded-full animate-ping"></div>
+                <div className="relative">
+                  <div className="absolute inset-0 bg-white/20 rounded-full animate-pulse"></div>
+                  <div className="absolute inset-0 bg-white/15 rounded-full animate-ping"></div>
                               <div
                                 className={`relative bg-white/10 hover:bg-white/20 backdrop-blur-lg text-white rounded-full p-3 sm:p-4 text-2xl sm:text-3xl lg:text-4xl transition-all duration-300 hover:scale-105 shadow-lg shadow-black/20 hover:shadow-xl hover:shadow-black/30 border border-white/20 hover:border-white/30 ${isLoadingPlayback ? 'opacity-50' : 'opacity-100'}`}
                                 style={{
@@ -2341,10 +2341,10 @@ export default function MoviesAndSeriesDetailsSections(props) {
                                   alignItems: 'center',
                                   justifyContent: 'center'
                                 }}
-                              >
-                                <BiPlay className="ml-0.5" />
-                              </div>
-                            </div>
+                  >
+                    <BiPlay className="ml-0.5" />
+                </div>
+              </div>
                           </div>
                         </div>
                       )}
