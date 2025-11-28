@@ -132,7 +132,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
         video.style.setProperty('margin', '0', 'important');
         video.style.setProperty('padding', '0', 'important');
         video.style.setProperty('background-color', '#000', 'important');
-        video.style.setProperty('object-fit', 'cover', 'important');
+        video.style.setProperty('object-fit', 'contain', 'important'); // Preserve aspect ratio without distortion
         video.style.setProperty('border-radius', '1rem', 'important');
         
         // Also ensure container is visible and fills parent perfectly
@@ -1322,7 +1322,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
           video.style.setProperty('min-height', '100%', 'important');
           video.style.setProperty('max-width', '100%', 'important');
           video.style.setProperty('max-height', '100%', 'important');
-          video.style.setProperty('object-fit', 'cover', 'important');
+          video.style.setProperty('object-fit', 'contain', 'important'); // Preserve aspect ratio without distortion
           video.style.setProperty('border-radius', '1rem', 'important');
         }
         video.style.setProperty('display', 'block', 'important');
@@ -1582,13 +1582,14 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 height: 'auto',
                 minHeight: '60vh',
                 maxHeight: 'none',
-                aspectRatio: '16/9',
+                aspectRatio: '16/9', // Maintain 16:9 aspect ratio to match video
                 zIndex: 50,
                 position: 'relative',
                 display: 'block',
                 visibility: 'visible',
                 opacity: 1,
-                backgroundColor: '#000'
+                backgroundColor: '#000',
+                overflow: 'hidden' // Prevent overflow
               } : isMobile ? {
                 aspectRatio: '16/9',
                 maxHeight: '50vh',
@@ -1794,7 +1795,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                       minWidth: '100vw',
                       minHeight: '100vh'
                     } : isMobile && isPlayingMovie ? {
-                      // On mobile, fill the container perfectly - same size as poster
+                      // On mobile, fill the container perfectly - preserve aspect ratio without distortion
                       position: 'absolute',
                       top: 0,
                       left: 0,
@@ -1806,7 +1807,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                       minHeight: '100%',
                       maxWidth: '100%',
                       maxHeight: '100%',
-                      objectFit: 'cover'
+                      objectFit: 'contain' // Use contain to preserve aspect ratio without distortion
                     } : isMobile ? {
                       width: '100%',
                       height: '50vh',
@@ -1823,7 +1824,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                       maxHeight: '60vh'
                     }),
                     backgroundColor: '#000',
-                    objectFit: isFullscreen ? 'cover' : (isMobile && isPlayingMovie ? 'cover' : 'contain'),
+                    objectFit: isFullscreen ? 'cover' : 'contain', // Always use contain to preserve aspect ratio (except fullscreen)
                     position: isMobile && isPlayingMovie ? 'absolute' : 'relative',
                     zIndex: 20,
                     display: (isPlayingMovie && videoUrl) ? 'block !important' : 'none',
@@ -1850,7 +1851,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                       left: '0 !important',
                       right: '0 !important',
                       bottom: '0 !important',
-                      objectFit: 'cover !important',
+                      objectFit: 'contain !important', // Preserve aspect ratio without distortion
                       willChange: 'auto',
                       transform: 'translateZ(0)',
                       WebkitTransform: 'translateZ(0)',
