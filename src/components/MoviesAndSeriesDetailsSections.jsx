@@ -385,6 +385,10 @@ export default function MoviesAndSeriesDetailsSections(props) {
       
       setVideoUrl(shortUrl);
       setIsPlayingMovie(true);
+      // Show controls when video starts (desktop)
+      if (!isMobile) {
+        setShowControls(true);
+      }
       
       // On mobile with user gesture, try to play immediately
       if (isMobile && userGesture && videoRef.current) {
@@ -1568,15 +1572,38 @@ export default function MoviesAndSeriesDetailsSections(props) {
                   }, 4000);
                 }}
                 onMouseMove={() => {
-                  setShowControls(true);
-                  if (controlsTimeoutRef.current) {
-                    clearTimeout(controlsTimeoutRef.current);
-                  }
-                  controlsTimeoutRef.current = setTimeout(() => {
-                    if (isPlaying) {
-                      setShowControls(false);
+                  if (!isMobile) {
+                    setShowControls(true);
+                    if (controlsTimeoutRef.current) {
+                      clearTimeout(controlsTimeoutRef.current);
                     }
-                  }, 3000);
+                    controlsTimeoutRef.current = setTimeout(() => {
+                      if (isPlaying) {
+                        setShowControls(false);
+                      }
+                    }, 3000);
+                  }
+                }}
+                onClick={(e) => {
+                  // On desktop, clicking video shows controls and toggles play/pause
+                  if (!isMobile && isPlayingMovie && videoUrl) {
+                    // Don't toggle if clicking on controls
+                    if (e.target.closest('.video-controls-overlay')) {
+                      return;
+                    }
+                    // Toggle play/pause
+                    togglePlayPause();
+                    // Show controls
+                    setShowControls(true);
+                    if (controlsTimeoutRef.current) {
+                      clearTimeout(controlsTimeoutRef.current);
+                    }
+                    controlsTimeoutRef.current = setTimeout(() => {
+                      if (isPlaying) {
+                        setShowControls(false);
+                      }
+                    }, 4000);
+                  }
                 }}
               >
                 {videoError && videoRef.current && videoRef.current.error && videoRef.current.readyState === 0 && videoRef.current.paused && videoRef.current.currentTime === 0 ? (
@@ -2039,9 +2066,22 @@ export default function MoviesAndSeriesDetailsSections(props) {
                         
                         {/* Custom Controls Overlay */}
                         <div 
-                          className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent ${isMobile ? 'p-3' : 'p-4'} z-20 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
+                          className={`video-controls-overlay absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent ${isMobile ? 'p-3' : 'p-4'} z-20 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
                           style={{
                             pointerEvents: showControls ? 'auto' : 'none'
+                          }}
+                          onClick={(e) => {
+                            // Prevent video toggle when clicking on controls
+                            e.stopPropagation();
+                          }}
+                          onMouseEnter={() => {
+                            // Show controls on hover (desktop)
+                            if (!isMobile) {
+                              setShowControls(true);
+                              if (controlsTimeoutRef.current) {
+                                clearTimeout(controlsTimeoutRef.current);
+                              }
+                            }
                           }}
                           onTouchStart={(e) => {
                             e.stopPropagation();
@@ -2218,16 +2258,22 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           </div>
                         )}
                         
-                        {/* Stop Button */}
+                        {/* Close Button (X) - Always visible when playing */}
                         {isPlayingMovie && videoUrl && (
                           <button
-                            onClick={stopPlaying}
-                            onTouchStart={(e) => e.stopPropagation()}
-                            className="absolute top-3 left-3 z-30 p-2 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:border-red-500/50 active:border-red-500 text-white transition-all duration-300 hover:scale-110 active:scale-105 hover:bg-black/80 shadow-lg touch-manipulation"
-                            title="Stop playing"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              stopPlaying();
+                            }}
+                            onTouchStart={(e) => {
+                              e.stopPropagation();
+                              stopPlaying();
+                            }}
+                            className="absolute top-3 right-3 z-30 p-2 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:border-red-500/50 active:border-red-500 text-white transition-all duration-300 hover:scale-110 active:scale-105 hover:bg-black/80 shadow-lg touch-manipulation"
+                            title="Close player"
                             style={{ WebkitTapHighlightColor: 'transparent' }}
                           >
-                            <AiOutlineClose className="text-white text-lg" />
+                            <AiOutlineClose className="text-white text-lg sm:text-xl" />
                           </button>
                         )}
                       </div>
