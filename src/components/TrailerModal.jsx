@@ -8,7 +8,7 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
-  const [isFullscreen, setnbnIsFullscreen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef(null);
   const iframeRef = useRef(null);
 
@@ -208,7 +208,15 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
       setIsLoading(true);
       setError(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, movieTitle, releaseYear]);
+
+  // Debug: Log when videoId changes
+  useEffect(() => {
+    if (videoId) {
+      console.log('Video ID set:', videoId);
+    }
+  }, [videoId]);
 
   const searchYouTubeTrailer = async () => {
     setIsLoading(true);
@@ -223,38 +231,60 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
       
       if (API_KEY) {
         try {
-          // Use YouTube Data API
+          // Use YouTube Data API with timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+          
           const response = await fetch(
-            `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${searchQuery}&type=video&videoCategoryId=24&maxResults=1&key=${API_KEY}`
+            `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${searchQuery}&type=video&videoCategoryId=24&maxResults=1&key=${API_KEY}`,
+            { signal: controller.signal }
           );
+          
+          clearTimeout(timeoutId);
           
           if (response.ok) {
             const data = await response.json();
             
             if (data.items && data.items.length > 0) {
-              setVideoId(data.items[0].id.videoId);
+              const foundVideoId = data.items[0].id.videoId;
+              console.log('Found video ID via API:', foundVideoId);
+              setVideoId(foundVideoId);
               setIsLoading(false);
               return;
             }
+          } else {
+            console.warn('YouTube API response not OK:', response.status);
           }
           
           // Fallback: try without category filter
+          const fallbackController = new AbortController();
+          const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 10000);
+          
           const fallbackResponse = await fetch(
-            `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${searchQuery}&type=video&maxResults=1&key=${API_KEY}`
+            `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${searchQuery}&type=video&maxResults=1&key=${API_KEY}`,
+            { signal: fallbackController.signal }
           );
+          
+          clearTimeout(fallbackTimeoutId);
           
           if (fallbackResponse.ok) {
             const fallbackData = await fallbackResponse.json();
             
             if (fallbackData.items && fallbackData.items.length > 0) {
-              setVideoId(fallbackData.items[0].id.videoId);
+              const foundVideoId = fallbackData.items[0].id.videoId;
+              console.log('Found video ID via API (fallback):', foundVideoId);
+              setVideoId(foundVideoId);
               setIsLoading(false);
               return;
             }
           }
         } catch (apiError) {
-          console.error('YouTube API error:', apiError);
+          if (apiError.name !== 'AbortError') {
+            console.error('YouTube API error:', apiError);
+          }
         }
+      } else {
+        console.log('No YouTube API key found, using fallback methods');
       }
       
       // Fallback: Use multiple CORS proxies to search YouTube (works without API key)
@@ -272,12 +302,18 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
             ? `${proxyBase}${encodeURIComponent(youtubeSearchUrl)}`
             : `${proxyBase}${encodeURIComponent(youtubeSearchUrl)}`;
           
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout per proxy
+          
           const response = await fetch(proxyUrl, {
             method: 'GET',
             headers: {
               'Accept': 'text/html'
-            }
+            },
+            signal: controller.signal
           });
+          
+          clearTimeout(timeoutId);
           
           if (response.ok) {
             let html = '';
@@ -289,7 +325,7 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
               html = await response.text();
             }
             
-            if (html) {
+            if (html && html.length > 1000) { // Ensure we got meaningful content
               // Try multiple extraction methods
               const extractionMethods = [
                 // Method 1: Extract from ytInitialData JSON
@@ -365,6 +401,7 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
               for (const method of extractionMethods) {
                 const videoId = method();
                 if (videoId && videoId.length === 11) {
+                  console.log('Found video ID via proxy:', videoId);
                   setVideoId(videoId);
                   setIsLoading(false);
                   return;
@@ -373,12 +410,15 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
             }
           }
         } catch (proxyError) {
-          console.error(`Proxy ${proxyBase} error:`, proxyError);
+          if (proxyError.name !== 'AbortError') {
+            console.error(`Proxy ${proxyBase} error:`, proxyError);
+          }
           continue; // Try next proxy
         }
       }
       
       // If all methods fail, show error with link to YouTube search
+      console.error('All trailer search methods failed');
       setError('Unable to automatically load trailer.');
     } catch (err) {
       console.error('Error searching for trailer:', err);
@@ -622,13 +662,18 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
                 
                 {videoId && !isLoading && (
                   <iframe
+                    key={videoId}
                     ref={iframeRef}
                     className={`absolute top-0 left-0 ${isFullscreen && isMobile ? 'w-screen h-screen' : 'w-full h-full'}`}
-                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&playsinline=1&modestbranding=1&fs=1&enablejsapi=1`}
+                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&rel=0&playsinline=1&modestbranding=1&fs=1&enablejsapi=1${typeof window !== 'undefined' && window.location ? `&origin=${encodeURIComponent(window.location.origin)}` : ''}`}
                     title={`${movieTitle} Trailer`}
                     frameBorder="0"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                     allowFullScreen
+                    loading="eager"
+                    onLoad={() => {
+                      console.log('Video iframe loaded successfully for video:', videoId);
+                    }}
                     style={isFullscreen && isMobile ? {
                       width: '100vw',
                       height: '100vh',
