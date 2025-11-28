@@ -8,7 +8,7 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isFullscreen, setnbnIsFullscreen] = useState(false);
   const containerRef = useRef(null);
   const iframeRef = useRef(null);
 

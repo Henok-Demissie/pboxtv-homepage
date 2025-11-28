@@ -2161,10 +2161,8 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           }}
                         />
                         
-                        {/* Custom Controls Overlay - Show when playing */}
-                        {isPlayingMovie && videoUrl ? (
-                          <>
-                            <div 
+                        {/* Custom Controls Overlay */}
+                        <div 
                           className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent ${isMobile ? 'p-3' : 'p-4'} z-20 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
                           style={{
                             pointerEvents: showControls ? 'auto' : 'none'
@@ -2343,72 +2341,71 @@ export default function MoviesAndSeriesDetailsSections(props) {
                             <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
                           </div>
                         )}
+                        
+                        {/* Stop Button */}
+                        {isPlayingMovie && videoUrl && (
+                          <button
+                            onClick={stopPlaying}
+                            onTouchStart={(e) => e.stopPropagation()}
+                            className="absolute top-3 left-3 z-30 p-2 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:border-red-500/50 active:border-red-500 text-white transition-all duration-300 hover:scale-110 active:scale-105 hover:bg-black/80 shadow-lg touch-manipulation"
+                            title="Stop playing"
+                            style={{ WebkitTapHighlightColor: 'transparent' }}
+                          >
+                            <AiOutlineClose className="text-white text-lg" />
+                          </button>
+                        )}
                       </div>
                       
-                            {/* Stop Button */}
-                            <button
-                              onClick={stopPlaying}
-                              onTouchStart={(e) => e.stopPropagation()}
-                              className="absolute top-3 left-3 z-30 p-2 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:border-red-500/50 active:border-red-500 text-white transition-all duration-300 hover:scale-110 active:scale-105 hover:bg-black/80 shadow-lg touch-manipulation"
-                              title="Stop playing"
-                              style={{ WebkitTapHighlightColor: 'transparent' }}
-                            >
-                              <AiOutlineClose className="text-white text-lg" />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            {/* Play Button Overlay - Show when not playing */}
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePlayClick();
-                    }}
-                    onTouchStart={(e) => {
-                      e.stopPropagation();
-                      // On mobile, ensure immediate response
-                      if (isMobile) {
-                        handlePlayClick();
-                      }
-                    }}
-                    onTouchEnd={(e) => {
-                      e.stopPropagation();
-                      // Also handle on touch end for better mobile support
-                      if (isMobile && !isPlayingMovie) {
-                        handlePlayClick();
-                      }
-                    }}
-                    className="absolute inset-0 cursor-pointer transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-xl hover:shadow-white/20 group bg-gradient-to-br from-gray-700/20 to-gray-900/40 touch-manipulation overflow-hidden rounded-2xl"
-                    style={{ 
-                      WebkitTapHighlightColor: 'transparent',
-                      width: '100%',
-                      height: '100%',
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0
-                    }}
-            >
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
+                      {/* Play Button Overlay - Show when not playing */}
+                      {(!isPlayingMovie || !videoUrl) && (
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlayClick();
+                          }}
+                          onTouchStart={(e) => {
+                            e.stopPropagation();
+                            // On mobile, ensure immediate response
+                            if (isMobile) {
+                              handlePlayClick();
+                            }
+                          }}
+                          onTouchEnd={(e) => {
+                            e.stopPropagation();
+                            // Also handle on touch end for better mobile support
+                            if (isMobile && !isPlayingMovie) {
+                              handlePlayClick();
+                            }
+                          }}
+                          className="absolute inset-0 cursor-pointer transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-xl hover:shadow-white/20 group bg-gradient-to-br from-gray-700/20 to-gray-900/40 touch-manipulation overflow-hidden rounded-2xl"
+                          style={{ 
+                            WebkitTapHighlightColor: 'transparent',
+                            width: '100%',
+                            height: '100%',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0
+                          }}
+                        >
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
 
-              <div className="absolute z-20 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-white/20 rounded-full animate-pulse"></div>
-                  <div className="absolute inset-0 bg-white/15 rounded-full animate-ping"></div>
-                  <button
-                    disabled={isLoadingPlayback}
-                    className={`relative bg-white/10 hover:bg-white/20 backdrop-blur-lg text-white rounded-full p-3 sm:p-4 text-2xl sm:text-3xl lg:text-4xl transition-all duration-300 hover:scale-105 shadow-lg shadow-black/20 hover:shadow-xl hover:shadow-black/30 border border-white/20 hover:border-white/30 ${isLoadingPlayback ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    <BiPlay className="ml-0.5" />
-                  </button>
-                </div>
-              </div>
-
+                          <div className="absolute z-20 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                            <div className="relative">
+                              <div className="absolute inset-0 bg-white/20 rounded-full animate-pulse"></div>
+                              <div className="absolute inset-0 bg-white/15 rounded-full animate-ping"></div>
+                              <button
+                                disabled={isLoadingPlayback}
+                                className={`relative bg-white/10 hover:bg-white/20 backdrop-blur-lg text-white rounded-full p-3 sm:p-4 text-2xl sm:text-3xl lg:text-4xl transition-all duration-300 hover:scale-105 shadow-lg shadow-black/20 hover:shadow-xl hover:shadow-black/30 border border-white/20 hover:border-white/30 ${isLoadingPlayback ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              >
+                                <BiPlay className="ml-0.5" />
+                              </button>
                             </div>
-                          </>
-                        )}
-              </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
             <div className={`space-y-4 sm:p-2 ${isMobile && isPlayingMovie ? 'hidden' : ''}`}>
               {props.movieData.genres && (
