@@ -2161,8 +2161,10 @@ export default function MoviesAndSeriesDetailsSections(props) {
                           }}
                         />
                         
-                        {/* Custom Controls Overlay */}
-                        <div 
+                        {/* Custom Controls Overlay - Show when playing */}
+                        {isPlayingMovie && videoUrl ? (
+                          <>
+                            <div 
                           className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent ${isMobile ? 'p-3' : 'p-4'} z-20 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
                           style={{
                             pointerEvents: showControls ? 'auto' : 'none'
@@ -2343,22 +2345,20 @@ export default function MoviesAndSeriesDetailsSections(props) {
                         )}
                       </div>
                       
-                      {/* Stop Button */}
-                      <button
-                        onClick={stopPlaying}
-                        onTouchStart={(e) => e.stopPropagation()}
-                        className="absolute top-3 left-3 z-30 p-2 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:border-red-500/50 active:border-red-500 text-white transition-all duration-300 hover:scale-110 active:scale-105 hover:bg-black/80 shadow-lg touch-manipulation"
-                        title="Stop playing"
-                        style={{ WebkitTapHighlightColor: 'transparent' }}
-                      >
-                        <AiOutlineClose className="text-white text-lg" />
-                      </button>
-                    </>
-                  )}
-                </>
-              ) : (
-                <>
-                  {/* Play Button Overlay - Show when not playing */}
+                            {/* Stop Button */}
+                            <button
+                              onClick={stopPlaying}
+                              onTouchStart={(e) => e.stopPropagation()}
+                              className="absolute top-3 left-3 z-30 p-2 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:border-red-500/50 active:border-red-500 text-white transition-all duration-300 hover:scale-110 active:scale-105 hover:bg-black/80 shadow-lg touch-manipulation"
+                              title="Stop playing"
+                              style={{ WebkitTapHighlightColor: 'transparent' }}
+                            >
+                              <AiOutlineClose className="text-white text-lg" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {/* Play Button Overlay - Show when not playing */}
                   <div
                     onClick={(e) => {
                       e.stopPropagation();
@@ -2405,10 +2405,10 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 </div>
               </div>
 
-                  </div>
-                </>
-              )}
-            </div>
+                            </div>
+                          </>
+                        )}
+              </div>
 
             <div className={`space-y-4 sm:p-2 ${isMobile && isPlayingMovie ? 'hidden' : ''}`}>
               {props.movieData.genres && (
