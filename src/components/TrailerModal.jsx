@@ -388,10 +388,56 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
     }
   };
 
-  const handleClose = () => {
+  const handleClose = async () => {
     // Exit fullscreen if active
     if (isFullscreen) {
-      toggleFullscreen();
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          await document.webkitExitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+          await document.mozCancelFullScreen();
+        } else if (document.msExitFullscreen) {
+          await document.msExitFullscreen();
+        }
+        // Reset CSS fallback styles
+        if (containerRef.current) {
+          containerRef.current.style.position = '';
+          containerRef.current.style.top = '';
+          containerRef.current.style.left = '';
+          containerRef.current.style.right = '';
+          containerRef.current.style.bottom = '';
+          containerRef.current.style.width = '';
+          containerRef.current.style.height = '';
+          containerRef.current.style.zIndex = '';
+          containerRef.current.style.paddingBottom = '';
+          containerRef.current.style.minHeight = '';
+          containerRef.current.style.maxHeight = '';
+          containerRef.current.style.borderRadius = '';
+          containerRef.current.style.margin = '';
+        }
+        setIsFullscreen(false);
+      } catch (err) {
+        console.error('Error exiting fullscreen:', err);
+        // Reset CSS fallback styles anyway
+        if (containerRef.current) {
+          containerRef.current.style.position = '';
+          containerRef.current.style.top = '';
+          containerRef.current.style.left = '';
+          containerRef.current.style.right = '';
+          containerRef.current.style.bottom = '';
+          containerRef.current.style.width = '';
+          containerRef.current.style.height = '';
+          containerRef.current.style.zIndex = '';
+          containerRef.current.style.paddingBottom = '';
+          containerRef.current.style.minHeight = '';
+          containerRef.current.style.maxHeight = '';
+          containerRef.current.style.borderRadius = '';
+          containerRef.current.style.margin = '';
+        }
+        setIsFullscreen(false);
+      }
     }
     setVideoId(null);
     setIsLoading(true);
@@ -460,8 +506,18 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
                   </button>
                 )}
                 <button
-                  onClick={handleClose}
-                  className="text-white hover:text-red-500 transition-colors p-1 rounded-full hover:bg-white/10 flex-shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    handleClose();
+                  }}
+                  onTouchStart={(e) => {
+                    e.stopPropagation();
+                    handleClose();
+                  }}
+                  className="text-white hover:text-red-500 active:text-red-400 transition-colors p-1 sm:p-2 rounded-full hover:bg-white/10 active:bg-white/20 flex-shrink-0 touch-manipulation z-50"
+                  title="Close"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
                 >
                   <AiOutlineClose className="text-xl sm:text-2xl" />
                 </button>
@@ -470,14 +526,40 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
             <ModalBody className={`!pb-2 sm:!pb-4 ${isFullscreen && isMobile ? '!p-0' : ''}`}>
               {/* Exit Fullscreen Button - Only visible in fullscreen on mobile */}
               {isFullscreen && isMobile && (
-                <button
-                  onClick={toggleFullscreen}
-                  className="absolute top-4 right-4 z-[10000] text-white hover:text-red-500 active:text-red-400 transition-colors p-3 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:bg-black/80 flex-shrink-0 touch-manipulation"
-                  title="Exit Fullscreen"
-                  style={{ WebkitTapHighlightColor: 'transparent' }}
-                >
-                  <BiExitFullscreen className="text-2xl" />
-                </button>
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      handleClose();
+                    }}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                      handleClose();
+                    }}
+                    className="absolute top-4 left-4 z-[10000] text-white hover:text-red-500 active:text-red-400 transition-colors p-3 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:bg-black/80 flex-shrink-0 touch-manipulation"
+                    title="Close"
+                    style={{ WebkitTapHighlightColor: 'transparent' }}
+                  >
+                    <AiOutlineClose className="text-2xl" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      toggleFullscreen();
+                    }}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                      toggleFullscreen();
+                    }}
+                    className="absolute top-4 right-4 z-[10000] text-white hover:text-red-500 active:text-red-400 transition-colors p-3 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:bg-black/80 flex-shrink-0 touch-manipulation"
+                    title="Exit Fullscreen"
+                    style={{ WebkitTapHighlightColor: 'transparent' }}
+                  >
+                    <BiExitFullscreen className="text-2xl" />
+                  </button>
+                </>
               )}
               <div 
                 ref={containerRef}
