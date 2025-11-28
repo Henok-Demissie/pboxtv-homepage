@@ -1260,30 +1260,35 @@ export default function MoviesAndSeriesDetailsSections(props) {
       
       // CRITICAL: Set video src and play SYNCHRONOUSLY within user gesture
       // Video element is now ALWAYS rendered, so it should exist immediately
-      // Use requestAnimationFrame to ensure DOM is updated, then play IMMEDIATELY
+      // Try to play IMMEDIATELY - don't wait for RAF on mobile
+      let video = videoRef.current;
+      
+      if (!video) {
+        // If not available, check multiple times VERY quickly
+        const checkVideo = () => {
+          video = videoRef.current;
+          if (video) {
+            setupVideoAndPlay(video, downloadUrl);
+          } else {
+            setTimeout(checkVideo, 1);
+            setTimeout(checkVideo, 5);
+            setTimeout(checkVideo, 10);
+          }
+        };
+        checkVideo();
+      } else {
+        // Video exists - play IMMEDIATELY (within user gesture context)
+        setupVideoAndPlay(video, downloadUrl);
+      }
+      
+      // Also use RAF as backup to ensure DOM is updated
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          // Double RAF ensures React has updated the DOM
-          let video = videoRef.current;
-          
-          if (!video) {
-            // If still not available, check multiple times VERY quickly
-            const checkVideo = () => {
-              video = videoRef.current;
-              if (video) {
-                setupVideoAndPlay(video, downloadUrl);
-              } else {
-                setTimeout(checkVideo, 1);
-                setTimeout(checkVideo, 5);
-                setTimeout(checkVideo, 10);
-              }
-            };
-            checkVideo();
-            return;
+          const video = videoRef.current;
+          if (video && video.src === downloadUrl && video.paused) {
+            // Video exists but hasn't started playing - try again
+            setupVideoAndPlay(video, downloadUrl);
           }
-          
-          // Video exists - play IMMEDIATELY
-          setupVideoAndPlay(video, downloadUrl);
         });
       });
       
@@ -2393,23 +2398,26 @@ export default function MoviesAndSeriesDetailsSections(props) {
                         <div
                           onClick={(e) => {
                             e.stopPropagation();
+                            e.preventDefault();
                             handlePlayClick();
                           }}
                           onTouchStart={(e) => {
                             e.stopPropagation();
-                            // On mobile, ensure immediate response
+                            e.preventDefault();
+                            // On mobile, ensure immediate response - call immediately
                             if (isMobile) {
                               handlePlayClick();
                             }
                           }}
                           onTouchEnd={(e) => {
                             e.stopPropagation();
+                            e.preventDefault();
                             // Also handle on touch end for better mobile support
                             if (isMobile && !isPlayingMovie) {
                               handlePlayClick();
                             }
                           }}
-                          className="absolute inset-0 cursor-pointer transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-xl hover:shadow-white/20 group bg-gradient-to-br from-gray-700/20 to-gray-900/40 touch-manipulation overflow-hidden rounded-2xl"
+                          className="absolute inset-0 cursor-pointer transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-xl hover:shadow-white/20 group bg-gradient-to-br from-gray-700/20 to-gray-900/40 touch-manipulation overflow-hidden rounded-2xl z-40"
                           style={{ 
                             WebkitTapHighlightColor: 'transparent',
                             width: '100%',
@@ -2418,21 +2426,30 @@ export default function MoviesAndSeriesDetailsSections(props) {
                             top: 0,
                             left: 0,
                             right: 0,
-                            bottom: 0
+                            bottom: 0,
+                            zIndex: 40,
+                            pointerEvents: 'auto',
+                            cursor: 'pointer'
                           }}
                         >
                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
 
-                          <div className="absolute z-20 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                          <div className="absolute z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
                             <div className="relative">
                               <div className="absolute inset-0 bg-white/20 rounded-full animate-pulse"></div>
                               <div className="absolute inset-0 bg-white/15 rounded-full animate-ping"></div>
-                              <button
-                                disabled={isLoadingPlayback}
-                                className={`relative bg-white/10 hover:bg-white/20 backdrop-blur-lg text-white rounded-full p-3 sm:p-4 text-2xl sm:text-3xl lg:text-4xl transition-all duration-300 hover:scale-105 shadow-lg shadow-black/20 hover:shadow-xl hover:shadow-black/30 border border-white/20 hover:border-white/30 ${isLoadingPlayback ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              <div
+                                className={`relative bg-white/10 hover:bg-white/20 backdrop-blur-lg text-white rounded-full p-3 sm:p-4 text-2xl sm:text-3xl lg:text-4xl transition-all duration-300 hover:scale-105 shadow-lg shadow-black/20 hover:shadow-xl hover:shadow-black/30 border border-white/20 hover:border-white/30 ${isLoadingPlayback ? 'opacity-50' : 'opacity-100'}`}
+                                style={{
+                                  pointerEvents: 'auto',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}
                               >
                                 <BiPlay className="ml-0.5" />
-                              </button>
+                              </div>
                             </div>
                           </div>
                         </div>
