@@ -103,7 +103,8 @@ export default function MoviesAndSeriesDetailsSections(props) {
         // Set ALL video properties IMMEDIATELY
         video.preload = 'auto';
         video.playbackRate = 1;
-        video.muted = false;
+        // Start muted for autoplay compatibility, then unmute after play
+        video.muted = true;
         video.volume = 1;
         video.playsInline = true;
         video.setAttribute('webkit-playsinline', 'true');
@@ -153,7 +154,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
           containerRef.current.style.setProperty('border-radius', '1rem', 'important');
         }
         
-        // Load video
+        // Load video FIRST
         video.load();
         
         // Try to play IMMEDIATELY - MUST PLAY WITHIN USER GESTURE
@@ -165,11 +166,18 @@ export default function MoviesAndSeriesDetailsSections(props) {
           video.style.setProperty('visibility', 'visible', 'important');
           video.style.setProperty('opacity', '1', 'important');
           
+          // Unmute before playing
+          video.muted = false;
+          video.volume = 1;
+          
           try {
             const playPromise = video.play();
             if (playPromise !== undefined) {
               playPromise
                 .then(() => {
+                  // Ensure unmuted
+                  video.muted = false;
+                  video.volume = 1;
                   setIsPlaying(true);
                   setIsLoadingPlayback(false);
                   setVideoError(null);
@@ -189,8 +197,8 @@ export default function MoviesAndSeriesDetailsSections(props) {
           }
         };
         
-        // Try playing IMMEDIATELY - multiple times
-        attemptPlay();
+        // Try playing IMMEDIATELY - multiple times with micro-delays
+        setTimeout(attemptPlay, 0);
         setTimeout(attemptPlay, 1);
         setTimeout(attemptPlay, 5);
         setTimeout(attemptPlay, 10);
@@ -1304,18 +1312,27 @@ export default function MoviesAndSeriesDetailsSections(props) {
         video.pause();
         video.removeAttribute('crossOrigin');
         
-        // Set video properties synchronously
+        // Set video properties synchronously - CRITICAL FOR MOBILE
         video.src = url;
         video.preload = 'auto';
         video.playbackRate = 1;
-        video.muted = false;
-        video.volume = 1;
+        // On mobile, try muted first (some browsers require this)
+        if (isMobile) {
+          video.muted = true; // Start muted for autoplay compatibility
+          video.volume = 0.5; // Set volume but keep muted initially
+        } else {
+          video.muted = false;
+          video.volume = 1;
+        }
         video.playsInline = true;
         video.setAttribute('webkit-playsinline', 'true');
         video.setAttribute('x5-playsinline', 'true');
         video.setAttribute('x5-video-player-type', 'h5');
         video.setAttribute('x5-video-player-fullscreen', 'true');
         video.removeAttribute('crossOrigin');
+        
+        // CRITICAL: Load the video FIRST before trying to play
+        video.load();
         
         // Ensure video is visible - FORCE visibility with important flags
         // CRITICAL: On mobile, fill container perfectly (100% height/width, absolute positioning)
@@ -1369,35 +1386,46 @@ export default function MoviesAndSeriesDetailsSections(props) {
           }, 100);
         }
         
-        // CRITICAL: Try playing BEFORE load() - must happen within user gesture
+        // CRITICAL: Try playing AFTER load() - must happen within user gesture
+        // Wait a tiny bit for load() to process, then play IMMEDIATELY
         const playImmediately = () => {
           try {
+            // On mobile, unmute after play starts
+            if (isMobile && video.muted) {
+              video.muted = false;
+            }
+            
             const playPromise = video.play();
             if (playPromise !== undefined) {
               playPromise
                 .then(() => {
+                  // Unmute after successful play
+                  if (isMobile) {
+                    video.muted = false;
+                    video.volume = 1;
+                  }
                   setIsPlaying(true);
                   setIsLoadingPlayback(false);
                   setVideoError(null);
                   console.log('✅✅✅ Mobile video PLAYING IMMEDIATELY!');
                 })
-                .catch(() => {
+                .catch((err) => {
+                  console.log('Play failed, will retry:', err);
                   // Will retry below
                 });
             }
           } catch (e) {
+            console.log('Play error:', e);
             // Will retry below
           }
         };
         
-        // Try playing IMMEDIATELY before load()
-        playImmediately();
-        
-        // Load the video
-        video.load();
-        
-        // Try playing IMMEDIATELY after setting src - within user gesture
-        playImmediately();
+        // Try playing IMMEDIATELY after load() - within user gesture context
+        // Use micro-delays to ensure load() has processed
+        setTimeout(playImmediately, 0);
+        setTimeout(playImmediately, 1);
+        setTimeout(playImmediately, 5);
+        setTimeout(playImmediately, 10);
         
         // Try to play IMMEDIATELY - this MUST happen within user gesture
         const attemptPlay = () => {
@@ -1407,12 +1435,23 @@ export default function MoviesAndSeriesDetailsSections(props) {
             video.style.setProperty('visibility', 'visible', 'important');
             video.style.setProperty('opacity', '1', 'important');
             
+            // On mobile, ensure unmuted for user experience
+            if (isMobile && video.muted) {
+              video.muted = false;
+              video.volume = 1;
+            }
+            
             // Try playing even if video hasn't fully loaded yet
             try {
               const playPromise = video.play();
               if (playPromise !== undefined) {
                 playPromise
                   .then(() => {
+                    // Ensure unmuted after play
+                    if (isMobile) {
+                      video.muted = false;
+                      video.volume = 1;
+                    }
                     setIsPlaying(true);
                     setIsLoadingPlayback(false);
                     setVideoError(null);
@@ -1424,7 +1463,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                       video.style.setProperty('visibility', 'visible', 'important');
                       video.style.setProperty('opacity', '1', 'important');
                       video.style.setProperty('z-index', '50', 'important');
-                      video.style.setProperty('position', 'relative', 'important');
+                      video.style.setProperty('position', 'absolute', 'important');
                     }
                     
                     // Ensure container stays visible
@@ -1435,7 +1474,8 @@ export default function MoviesAndSeriesDetailsSections(props) {
                       containerRef.current.style.setProperty('z-index', '50', 'important');
                     }
                   })
-                  .catch(() => {
+                  .catch((err) => {
+                    console.log('Play attempt failed:', err);
                     // Keep retrying - don't give up
                   });
               } else {
@@ -1443,6 +1483,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 setTimeout(() => attemptPlay(), 5);
               }
             } catch (e) {
+              console.log('Play error:', e);
               // Keep retrying
               setTimeout(() => attemptPlay(), 10);
             }
