@@ -94,6 +94,7 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
   // Load video URL when modal opens
   useEffect(() => {
     if (isOpen && source) {
+      console.log('Loading video for source:', source);
       loadVideoUrl();
     } else {
       // Reset when modal closes
@@ -108,6 +109,7 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
         videoRef.current.currentTime = 0;
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, source]);
 
   // Automatically enter fullscreen on mobile when modal opens
@@ -178,10 +180,55 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
     setError(null);
     
     try {
+      if (!source) {
+        console.error('No source provided');
+        setError('No video source available.');
+        setIsLoading(false);
+        return;
+      }
+
+      if (!source.id || !source.name) {
+        console.error('Invalid source:', source);
+        setError('Invalid video source.');
+        setIsLoading(false);
+        return;
+      }
+
+      if (!BASE) {
+        console.error('BASE URL not configured');
+        setError('Server configuration error.');
+        setIsLoading(false);
+        return;
+      }
+
       const downloadUrl = generateDownloadUrl(source.id, source.name);
-      const shortUrl = await shortenUrl(downloadUrl);
-      setVideoUrl(shortUrl);
+      console.log('Generated download URL:', downloadUrl);
+      
+      // Try to shorten URL, but if it fails, use the original URL
+      let finalUrl = downloadUrl;
+      try {
+        if (API_URL && API_KEY) {
+          finalUrl = await shortenUrl(downloadUrl);
+          console.log('Shortened URL:', finalUrl);
+        } else {
+          console.log('URL shortening not configured, using direct URL');
+        }
+      } catch (shortenErr) {
+        console.warn('URL shortening failed, using direct URL:', shortenErr);
+        finalUrl = downloadUrl;
+      }
+      
+      setVideoUrl(finalUrl);
+      console.log('Video URL set:', finalUrl);
       setIsLoading(false);
+      
+      // Verify the video element gets the URL
+      setTimeout(() => {
+        if (videoRef.current) {
+          console.log('Video element src:', videoRef.current.src);
+          console.log('Video element readyState:', videoRef.current.readyState);
+        }
+      }, 100);
     } catch (err) {
       console.error('Error loading video:', err);
       setError('Unable to load video. Please try again.');
@@ -664,7 +711,31 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
                             });
                           }
                         }}
-                        onError={() => setError('Failed to load video')}
+                        onError={(e) => {
+                          console.error('Video error:', e);
+                          const video = e.target;
+                          if (video.error) {
+                            console.error('Video error code:', video.error.code, 'Message:', video.error.message);
+                            switch (video.error.code) {
+                              case 1: // MEDIA_ERR_ABORTED
+                                setError('Video loading was aborted.');
+                                break;
+                              case 2: // MEDIA_ERR_NETWORK
+                                setError('Network error. Please check your connection.');
+                                break;
+                              case 3: // MEDIA_ERR_DECODE
+                                setError('Video decoding error.');
+                                break;
+                              case 4: // MEDIA_ERR_SRC_NOT_SUPPORTED
+                                setError('Video format not supported.');
+                                break;
+                              default:
+                                setError('Failed to load video. Please try again.');
+                            }
+                          } else {
+                            setError('Failed to load video. Please try again.');
+                          }
+                        }}
                         playsInline
                         autoPlay
                         preload="metadata"

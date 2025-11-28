@@ -1250,6 +1250,19 @@ export default function MoviesAndSeriesDetailsSections(props) {
     // On mobile, open MoviePlayerModal instead of inline playback
     if (isMobile) {
       const bestSource = sources[0];
+      if (!bestSource) {
+        await Swal.fire({
+          title: 'No Sources Available',
+          text: 'No playable sources found for this content.',
+          icon: 'error',
+          confirmButtonText: 'OK',
+          confirmButtonColor: '#e11d48',
+          background: '#1f2937',
+          color: '#ffffff'
+        });
+        return;
+      }
+      console.log('Opening MoviePlayerModal with source:', bestSource);
       setSelectedSource(bestSource);
       setIsMoviePlayerModalOpen(true);
       return;
