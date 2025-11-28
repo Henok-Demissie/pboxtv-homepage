@@ -1088,6 +1088,9 @@ export default function MoviesAndSeriesDetailsSections(props) {
     try {
       const downloadUrl = generateDownloadUrl(source.id, source.name);
       const shortUrl = await shortenUrl(downloadUrl);
+      
+      // Escape URL for use in JavaScript string
+      const escapedUrl = shortUrl.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
 
       const newWindow = window.open('', '_blank', 'width=1200,height=800');
       if (!newWindow) {
@@ -1176,12 +1179,22 @@ export default function MoviesAndSeriesDetailsSections(props) {
           <body>
             <div class="loading" id="loadingMsg"></div>
             <div class="title-overlay" id="titleOverlay">${title || source.name}</div>
-            <video controls preload="metadata" id="videoPlayer">
-              <source src="${shortUrl}" type="video/mp4">
-              <source src="${shortUrl}" type="video/mkv">
-              <source src="${shortUrl}" type="video/webm">
-              Your browser does not support the video tag.
+            <video controls preload="auto" playsinline crossorigin="anonymous" id="videoPlayer" style="width: 100%; height: 100vh; object-fit: contain;">
             </video>
+            <script>
+              // Set video src directly - this works better than source tags
+              const video = document.getElementById('videoPlayer');
+              if (video) {
+                video.src = "${escapedUrl}";
+                video.crossOrigin = "anonymous";
+                video.load();
+                
+                // Try to play when ready
+                video.addEventListener('canplay', () => {
+                  video.play().catch(err => console.log('Auto-play prevented:', err));
+                }, { once: true });
+              }
+            </script>
             <div class="fallback-options" id="fallbackOptions">
               <button class="fallback-btn" onclick="openVLC()">Open in VLC</button>
               <button class="fallback-btn" onclick="downloadFile()">Download</button>
@@ -1194,6 +1207,31 @@ export default function MoviesAndSeriesDetailsSections(props) {
               const fallbackOptions = document.getElementById('fallbackOptions');
               let hasStartedPlaying = false;
               let timeoutId;
+
+              // Ensure video src is set
+              if (video && !video.src) {
+                video.src = "${escapedUrl}";
+                video.load();
+              }
+
+              // Handle video errors with better messages
+              video.addEventListener('error', (e) => {
+                const error = video.error;
+                if (error) {
+                  console.error('Video error code:', error.code, 'Message:', error.message);
+                  if (error.code === 4) {
+                    // MEDIA_ERR_SRC_NOT_SUPPORTED
+                    loading.innerHTML = 'Video format not supported. Try alternative options:';
+                  } else {
+                    loading.innerHTML = 'Failed to load video. Try alternative options:';
+                  }
+                } else {
+                  loading.innerHTML = 'Failed to load video. Try alternative options:';
+                }
+                loading.style.display = 'block';
+                fallbackOptions.classList.add('show-fallback');
+                clearTimeout(timeoutId);
+              });
 
               video.addEventListener('loadstart', () => {
                 timeoutId = setTimeout(() => {
@@ -1221,28 +1259,23 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 }, 3000);
               });
 
-              video.addEventListener('error', (e) => {
-                loading.innerHTML = 'Failed to load video. Try alternative options:';
-                loading.style.display = 'block';
-                fallbackOptions.classList.add('show-fallback');
-                clearTimeout(timeoutId);
-              });
 
               function openVLC() {
                 const userAgent = navigator.userAgent;
+                const videoUrl = "${escapedUrl}";
                 if (/Android/i.test(userAgent)) {
-                  window.location.href = 'intent:${shortUrl}#Intent;package=org.videolan.vlc;type=video/*;action=android.intent.action.VIEW;S.title=${encodeURIComponent(source.name)};end;';
+                  window.location.href = 'intent:' + videoUrl + '#Intent;package=org.videolan.vlc;type=video/*;action=android.intent.action.VIEW;S.title=${encodeURIComponent(source.name.replace(/'/g, "\\'"))};end;';
                 } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
-                  window.location.href = 'vlc-x-callback://x-callback-url/stream?url=${encodeURIComponent(shortUrl)}';
+                  window.location.href = 'vlc-x-callback://x-callback-url/stream?url=' + encodeURIComponent(videoUrl);
                 } else {
-                  window.open('${shortUrl}', '_blank');
+                  window.open(videoUrl, '_blank');
                 }
               }
 
               function downloadFile() {
                 const a = document.createElement('a');
-                a.href = '${shortUrl}';
-                a.download = '${source.name}';
+                a.href = "${escapedUrl}";
+                a.download = '${source.name.replace(/'/g, "\\'")}';
                 a.target = '_blank';
                 document.body.appendChild(a);
                 a.click();
@@ -1250,7 +1283,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
               }
 
               function openDirect() {
-                window.open('${shortUrl}', '_blank');
+                window.open("${escapedUrl}", '_blank');
               }
 
               setTimeout(() => {
