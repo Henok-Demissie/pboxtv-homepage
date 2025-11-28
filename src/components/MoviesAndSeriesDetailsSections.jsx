@@ -17,14 +17,12 @@ import TelegramButton from "./TelegramButtons";
 import DownloadButton from "./Buttons";
 import VLCStreamButton from "./VLCStreamButton";
 import TrailerModal from "./TrailerModal";
-import MoviePlayerModal from "./MoviePlayerModal";
 
 export default function MoviesAndSeriesDetailsSections(props) {
   const [isSeasonsOpen, setIsSeasonspOpen] = useState(false);
   const [isLoadingPlayback, setIsLoadingPlayback] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isTrailerModalOpen, setIsTrailerModalOpen] = useState(false);
-  const [isMoviePlayerModalOpen, setIsMoviePlayerModalOpen] = useState(false);
   const [isPlayingMovie, setIsPlayingMovie] = useState(false);
   const [selectedSource, setSelectedSource] = useState(null);
   const [videoUrl, setVideoUrl] = useState(null);
@@ -1247,7 +1245,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
       return;
     }
 
-    // On mobile, open MoviePlayerModal instead of inline playback
+    // On mobile, redirect to new window player (like old version)
     if (isMobile) {
       const bestSource = sources[0];
       if (!bestSource) {
@@ -1262,9 +1260,8 @@ export default function MoviesAndSeriesDetailsSections(props) {
         });
         return;
       }
-      console.log('Opening MoviePlayerModal with source:', bestSource);
-      setSelectedSource(bestSource);
-      setIsMoviePlayerModalOpen(true);
+      // Use tryDirectPlay to open new window with video player
+      await tryDirectPlay(bestSource, props.movieData?.title);
       return;
     }
 
@@ -2453,18 +2450,6 @@ export default function MoviesAndSeriesDetailsSections(props) {
         releaseYear={props.movieData?.release_year}
       />
 
-      {/* Movie Player Modal - Only for mobile */}
-      {isMobile && (
-        <MoviePlayerModal
-          isOpen={isMoviePlayerModalOpen}
-          onClose={() => {
-            setIsMoviePlayerModalOpen(false);
-            setSelectedSource(null);
-          }}
-          movieData={props.movieData}
-          source={selectedSource}
-        />
-      )}
     </div>
   );
 }
