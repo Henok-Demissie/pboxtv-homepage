@@ -280,7 +280,7 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
           }
         } catch (apiError) {
           if (apiError.name !== 'AbortError') {
-            console.error('YouTube API error:', apiError);
+          console.error('YouTube API error:', apiError);
           }
         }
       } else {
@@ -411,7 +411,7 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
           }
         } catch (proxyError) {
           if (proxyError.name !== 'AbortError') {
-            console.error(`Proxy ${proxyBase} error:`, proxyError);
+          console.error(`Proxy ${proxyBase} error:`, proxyError);
           }
           continue; // Try next proxy
         }

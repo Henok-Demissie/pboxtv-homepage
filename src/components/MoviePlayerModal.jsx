@@ -264,13 +264,13 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
     } else {
       // Exit fullscreen
       try {
-        if (document.exitFullscreen) {
+      if (document.exitFullscreen) {
           await document.exitFullscreen();
-        } else if (document.webkitExitFullscreen) {
+      } else if (document.webkitExitFullscreen) {
           await document.webkitExitFullscreen();
-        } else if (document.mozCancelFullScreen) {
+      } else if (document.mozCancelFullScreen) {
           await document.mozCancelFullScreen();
-        } else if (document.msExitFullscreen) {
+      } else if (document.msExitFullscreen) {
           await document.msExitFullscreen();
         } else {
           // CSS fallback: Reset styles
@@ -537,7 +537,7 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
                     )}
                   </button>
                 )}
-                <button
+              <button
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
@@ -550,9 +550,9 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
                   className="text-white hover:text-red-500 active:text-red-400 transition-colors p-1 sm:p-2 rounded-full hover:bg-white/10 active:bg-white/20 flex-shrink-0 touch-manipulation z-50"
                   title="Close"
                   style={{ WebkitTapHighlightColor: 'transparent' }}
-                >
-                  <AiOutlineClose className="text-xl sm:text-2xl" />
-                </button>
+              >
+                <AiOutlineClose className="text-xl sm:text-2xl" />
+              </button>
               </div>
             </ModalHeader>
             <ModalBody className={`!p-0 ${isFullscreen && isMobile ? '!p-0' : ''}`}>
