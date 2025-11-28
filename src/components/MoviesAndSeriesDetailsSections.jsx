@@ -17,12 +17,14 @@ import TelegramButton from "./TelegramButtons";
 import DownloadButton from "./Buttons";
 import VLCStreamButton from "./VLCStreamButton";
 import TrailerModal from "./TrailerModal";
+import MoviePlayerModal from "./MoviePlayerModal";
 
 export default function MoviesAndSeriesDetailsSections(props) {
   const [isSeasonsOpen, setIsSeasonspOpen] = useState(false);
   const [isLoadingPlayback, setIsLoadingPlayback] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isTrailerModalOpen, setIsTrailerModalOpen] = useState(false);
+  const [isMoviePlayerModalOpen, setIsMoviePlayerModalOpen] = useState(false);
   const [isPlayingMovie, setIsPlayingMovie] = useState(false);
   const [selectedSource, setSelectedSource] = useState(null);
   const [videoUrl, setVideoUrl] = useState(null);
@@ -1245,134 +1247,11 @@ export default function MoviesAndSeriesDetailsSections(props) {
       return;
     }
 
-    // On mobile, auto-play the first/best quality without showing dialog
+    // On mobile, open MoviePlayerModal instead of inline playback
     if (isMobile) {
       const bestSource = sources[0];
       setSelectedSource(bestSource);
-      
-      // CRITICAL: On mobile, play MUST happen synchronously within user gesture
-      const downloadUrl = generateDownloadUrl(bestSource.id, bestSource.name);
-      
-      // Set states immediately to render video element
-      setIsLoadingPlayback(true);
-      setVideoError(null);
-      setShowControls(true);
-      setIsPlayingMovie(true);
-      setVideoUrl(downloadUrl);
-      
-      // Clear any existing error timeouts
-      if (errorTimeoutRef.current) {
-        clearTimeout(errorTimeoutRef.current);
-        errorTimeoutRef.current = null;
-      }
-      
-      // CRITICAL: Get video element and play SYNCHRONOUSLY - NO DELAYS
-      const video = videoRef.current;
-      
-      if (video) {
-        // Video exists - play IMMEDIATELY within user gesture
-        // DO EVERYTHING SYNCHRONOUSLY - NO setTimeout, NO RAF
-        
-        // Clear previous state
-        video.pause();
-        video.removeAttribute('crossOrigin');
-        
-        // Set src and properties IMMEDIATELY
-        video.src = downloadUrl;
-        video.preload = 'auto';
-        video.playbackRate = 1;
-        video.muted = false; // Don't mute - user clicked play button
-        video.volume = 1;
-        video.playsInline = true;
-        video.setAttribute('webkit-playsinline', 'true');
-        video.setAttribute('x5-playsinline', 'true');
-        video.setAttribute('x5-video-player-type', 'h5');
-        video.setAttribute('x5-video-player-fullscreen', 'true');
-        
-        // Force visibility IMMEDIATELY
-        video.style.setProperty('display', 'block', 'important');
-        video.style.setProperty('visibility', 'visible', 'important');
-        video.style.setProperty('opacity', '1', 'important');
-        video.style.setProperty('position', 'absolute', 'important');
-        video.style.setProperty('width', '100%', 'important');
-        video.style.setProperty('height', '100%', 'important');
-        video.style.setProperty('z-index', '20', 'important');
-        
-        // Ensure container is visible
-        if (containerRef.current) {
-          containerRef.current.style.setProperty('display', 'flex', 'important');
-          containerRef.current.style.setProperty('visibility', 'visible', 'important');
-          containerRef.current.style.setProperty('opacity', '1', 'important');
-          containerRef.current.style.setProperty('position', 'absolute', 'important');
-          containerRef.current.style.setProperty('top', '0', 'important');
-          containerRef.current.style.setProperty('left', '0', 'important');
-          containerRef.current.style.setProperty('right', '0', 'important');
-          containerRef.current.style.setProperty('bottom', '0', 'important');
-          containerRef.current.style.setProperty('width', '100%', 'important');
-          containerRef.current.style.setProperty('height', '100%', 'important');
-          containerRef.current.style.setProperty('z-index', '20', 'important');
-        }
-        
-        // Load video
-        video.load();
-        
-        // CRITICAL: Try to play IMMEDIATELY - within user gesture context
-        // Try multiple times synchronously
-        try {
-          const playPromise1 = video.play();
-          if (playPromise1 !== undefined) {
-            playPromise1.then(() => {
-              setIsPlaying(true);
-              setIsLoadingPlayback(false);
-              setVideoError(null);
-              console.log('✅✅✅ MOBILE VIDEO PLAYING!');
-            }).catch(() => {});
-          }
-        } catch (e) {}
-        
-        // Try again immediately (some browsers need this)
-        try {
-          const playPromise2 = video.play();
-          if (playPromise2 !== undefined) {
-            playPromise2.then(() => {
-              setIsPlaying(true);
-              setIsLoadingPlayback(false);
-              setVideoError(null);
-            }).catch(() => {});
-          }
-        } catch (e) {}
-        
-        // Also try after load event fires
-        video.addEventListener('loadeddata', () => {
-          video.play().then(() => {
-            setIsPlaying(true);
-            setIsLoadingPlayback(false);
-            setVideoError(null);
-          }).catch(() => {});
-        }, { once: true });
-        
-        video.addEventListener('canplay', () => {
-          video.play().then(() => {
-            setIsPlaying(true);
-            setIsLoadingPlayback(false);
-            setVideoError(null);
-          }).catch(() => {});
-        }, { once: true });
-        
-        video.addEventListener('canplaythrough', () => {
-          video.play().then(() => {
-            setIsPlaying(true);
-            setIsLoadingPlayback(false);
-            setVideoError(null);
-          }).catch(() => {});
-        }, { once: true });
-      }
-      
-      // Background URL loading (non-blocking)
-      loadVideoUrl(bestSource, true).catch(err => {
-        console.error('Error in background URL loading:', err);
-      });
-      
+      setIsMoviePlayerModalOpen(true);
       return;
     }
 
@@ -2560,6 +2439,19 @@ export default function MoviesAndSeriesDetailsSections(props) {
         movieTitle={props.movieData?.title}
         releaseYear={props.movieData?.release_year}
       />
+
+      {/* Movie Player Modal - Only for mobile */}
+      {isMobile && (
+        <MoviePlayerModal
+          isOpen={isMoviePlayerModalOpen}
+          onClose={() => {
+            setIsMoviePlayerModalOpen(false);
+            setSelectedSource(null);
+          }}
+          movieData={props.movieData}
+          source={selectedSource}
+        />
+      )}
     </div>
   );
 }

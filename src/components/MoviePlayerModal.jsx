@@ -31,7 +31,7 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
 
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+      setIsMobile(window.innerWidth < 640);
     };
     
     checkMobile();
@@ -43,7 +43,14 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
   // Handle fullscreen changes
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement));
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement || 
+        document.webkitFullscreenElement || 
+        document.mozFullScreenElement || 
+        document.msFullscreenElement ||
+        document.webkitCurrentFullScreenElement
+      );
+      setIsFullscreen(isCurrentlyFullscreen);
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -58,6 +65,31 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
       document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
     };
   }, []);
+
+  // Hide body scroll and adjust styles when in fullscreen on mobile
+  useEffect(() => {
+    if (isFullscreen && isMobile) {
+      // Prevent body scroll
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      document.body.style.height = '100%';
+    } else {
+      // Restore body scroll
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
+    }
+
+    return () => {
+      // Cleanup: restore body scroll
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
+    };
+  }, [isFullscreen, isMobile]);
 
   // Load video URL when modal opens
   useEffect(() => {
@@ -77,6 +109,48 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
       }
     }
   }, [isOpen, source]);
+
+  // Automatically enter fullscreen on mobile when modal opens
+  useEffect(() => {
+    if (isOpen && isMobile && !isFullscreen) {
+      // Set fullscreen state immediately for mobile
+      setIsFullscreen(true);
+      
+      // Also try to enter native fullscreen if container is ready
+      if (containerRef.current) {
+        const timer = setTimeout(() => {
+          toggleFullscreen();
+        }, 50);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isOpen, isMobile]);
+
+  // Auto-play video on mobile when video is ready
+  useEffect(() => {
+    if (isMobile && videoRef.current && videoUrl && !isPlaying) {
+      const video = videoRef.current;
+      // Try to play when video is ready
+      if (video.readyState >= 2) { // HAVE_CURRENT_DATA or higher
+        video.play().then(() => {
+          setIsPlaying(true);
+        }).catch(err => {
+          console.error('Auto-play failed:', err);
+        });
+      } else {
+        // Wait for video to be ready
+        const playWhenReady = () => {
+          video.play().then(() => {
+            setIsPlaying(true);
+          }).catch(err => {
+            console.error('Auto-play failed:', err);
+          });
+        };
+        video.addEventListener('canplay', playWhenReady, { once: true });
+        video.addEventListener('loadeddata', playWhenReady, { once: true });
+      }
+    }
+  }, [isMobile, videoUrl, isPlaying]);
 
   const shortenUrl = async (url) => {
     try {
@@ -115,30 +189,127 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
     }
   };
 
-  const toggleFullscreen = () => {
+  const toggleFullscreen = async () => {
     if (!containerRef.current) return;
 
-    const element = containerRef.current;
+    const container = containerRef.current;
+    const video = videoRef.current;
 
     if (!isFullscreen) {
-      if (element.requestFullscreen) {
-        element.requestFullscreen().catch(() => setIsFullscreen(true));
-      } else if (element.webkitRequestFullscreen) {
-        element.webkitRequestFullscreen().catch(() => setIsFullscreen(true));
-      } else if (element.mozRequestFullScreen) {
-        element.mozRequestFullScreen().catch(() => setIsFullscreen(true));
-      } else if (element.msRequestFullscreen) {
-        element.msRequestFullscreen().catch(() => setIsFullscreen(true));
+      // Enter fullscreen
+      try {
+        // Try to fullscreen the video first (works better for video elements)
+        if (video) {
+          if (video.requestFullscreen) {
+            await video.requestFullscreen();
+            return;
+          } else if (video.webkitRequestFullscreen) {
+            await video.webkitRequestFullscreen();
+            return;
+          } else if (video.mozRequestFullScreen) {
+            await video.mozRequestFullScreen();
+            return;
+          } else if (video.msRequestFullscreen) {
+            await video.msRequestFullscreen();
+            return;
+          }
+        }
+
+        // Fallback: Try to fullscreen the container
+        if (container.requestFullscreen) {
+          await container.requestFullscreen();
+        } else if (container.webkitRequestFullscreen) {
+          await container.webkitRequestFullscreen();
+        } else if (container.mozRequestFullScreen) {
+          await container.mozRequestFullScreen();
+        } else if (container.msRequestFullscreen) {
+          await container.msRequestFullscreen();
+        } else {
+          // CSS fallback for browsers that don't support fullscreen API
+          container.style.position = 'fixed';
+          container.style.top = '0';
+          container.style.left = '0';
+          container.style.right = '0';
+          container.style.bottom = '0';
+          container.style.width = '100vw';
+          container.style.height = '100vh';
+          container.style.zIndex = '9999';
+          container.style.paddingBottom = '0';
+          container.style.minHeight = '100vh';
+          container.style.maxHeight = '100vh';
+          container.style.borderRadius = '0';
+          container.style.margin = '0';
+          setIsFullscreen(true);
+        }
+      } catch (err) {
+        console.error('Fullscreen error:', err);
+        // CSS fallback
+        if (container) {
+          container.style.position = 'fixed';
+          container.style.top = '0';
+          container.style.left = '0';
+          container.style.right = '0';
+          container.style.bottom = '0';
+          container.style.width = '100vw';
+          container.style.height = '100vh';
+          container.style.zIndex = '9999';
+          container.style.paddingBottom = '0';
+          container.style.minHeight = '100vh';
+          container.style.maxHeight = '100vh';
+          container.style.borderRadius = '0';
+          container.style.margin = '0';
+          setIsFullscreen(true);
+        }
       }
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => setIsFullscreen(false));
-      } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
-      } else if (document.mozCancelFullScreen) {
-        document.mozCancelFullScreen();
-      } else if (document.msExitFullscreen) {
-        document.msExitFullscreen();
+      // Exit fullscreen
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          await document.webkitExitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+          await document.mozCancelFullScreen();
+        } else if (document.msExitFullscreen) {
+          await document.msExitFullscreen();
+        } else {
+          // CSS fallback: Reset styles
+          if (container) {
+            container.style.position = '';
+            container.style.top = '';
+            container.style.left = '';
+            container.style.right = '';
+            container.style.bottom = '';
+            container.style.width = '';
+            container.style.height = '';
+            container.style.zIndex = '';
+            container.style.paddingBottom = '';
+            container.style.minHeight = '';
+            container.style.maxHeight = '';
+            container.style.borderRadius = '';
+            container.style.margin = '';
+            setIsFullscreen(false);
+          }
+        }
+      } catch (err) {
+        console.error('Exit fullscreen error:', err);
+        // CSS fallback: Reset styles
+        if (container) {
+          container.style.position = '';
+          container.style.top = '';
+          container.style.left = '';
+          container.style.right = '';
+          container.style.bottom = '';
+          container.style.width = '';
+          container.style.height = '';
+          container.style.zIndex = '';
+          container.style.paddingBottom = '';
+          container.style.minHeight = '';
+          container.style.maxHeight = '';
+          container.style.borderRadius = '';
+          container.style.margin = '';
+          setIsFullscreen(false);
+        }
       }
     }
   };
@@ -183,6 +354,15 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
     if (videoRef.current) {
       setDuration(videoRef.current.duration);
       setIsLoading(false);
+      
+      // Auto-play on mobile
+      if (isMobile) {
+        videoRef.current.play().then(() => {
+          setIsPlaying(true);
+        }).catch(err => {
+          console.error('Auto-play failed:', err);
+        });
+      }
     }
   };
 
@@ -219,7 +399,58 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleClose = () => {
+  const handleClose = async () => {
+    // Exit fullscreen if active
+    if (isFullscreen) {
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          await document.webkitExitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+          await document.mozCancelFullScreen();
+        } else if (document.msExitFullscreen) {
+          await document.msExitFullscreen();
+        }
+        // Reset CSS fallback styles
+        if (containerRef.current) {
+          containerRef.current.style.position = '';
+          containerRef.current.style.top = '';
+          containerRef.current.style.left = '';
+          containerRef.current.style.right = '';
+          containerRef.current.style.bottom = '';
+          containerRef.current.style.width = '';
+          containerRef.current.style.height = '';
+          containerRef.current.style.zIndex = '';
+          containerRef.current.style.paddingBottom = '';
+          containerRef.current.style.minHeight = '';
+          containerRef.current.style.maxHeight = '';
+          containerRef.current.style.borderRadius = '';
+          containerRef.current.style.margin = '';
+        }
+        setIsFullscreen(false);
+      } catch (err) {
+        console.error('Error exiting fullscreen:', err);
+        // Reset CSS fallback styles anyway
+        if (containerRef.current) {
+          containerRef.current.style.position = '';
+          containerRef.current.style.top = '';
+          containerRef.current.style.left = '';
+          containerRef.current.style.right = '';
+          containerRef.current.style.bottom = '';
+          containerRef.current.style.width = '';
+          containerRef.current.style.height = '';
+          containerRef.current.style.zIndex = '';
+          containerRef.current.style.paddingBottom = '';
+          containerRef.current.style.minHeight = '';
+          containerRef.current.style.maxHeight = '';
+          containerRef.current.style.borderRadius = '';
+          containerRef.current.style.margin = '';
+        }
+        setIsFullscreen(false);
+      }
+    }
+    
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.currentTime = 0;
@@ -229,6 +460,7 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
     setVideoUrl(null);
     setIsLoading(true);
     setError(null);
+    setIsFullscreen(false);
     if (controlsTimeoutRef.current) {
       clearTimeout(controlsTimeoutRef.current);
     }
@@ -255,11 +487,11 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
       hideCloseButton={true}
       placement="center"
       classNames={{
-        base: "bg-gray-900/95 backdrop-blur-xl border border-gray-800 m-0 sm:m-4 max-w-[100vw] sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[85vw] xl:max-w-[80vw] rounded-2xl",
-        header: "border-b border-gray-800 px-4 sm:px-6 py-3 sm:py-4",
-        body: "p-0",
-        wrapper: "p-0 sm:p-4",
-        backdrop: "bg-black/80"
+        base: `bg-gray-900/95 backdrop-blur-xl border border-gray-800 m-0 sm:m-4 max-w-[100vw] sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[85vw] xl:max-w-[80vw] ${isMobile ? '!fixed !inset-0 !m-0 !max-w-none !w-screen !h-screen !rounded-none !border-0 !bg-transparent !backdrop-blur-none' : 'rounded-2xl'}`,
+        header: `border-b border-gray-800 px-3 sm:px-6 py-2 sm:py-4 ${isMobile ? '!hidden' : ''}`,
+        body: `p-0 sm:p-4 pb-2 sm:pb-4 ${isMobile ? '!p-0' : ''}`,
+        wrapper: `p-0 sm:p-4 ${isMobile ? '!p-0' : ''}`,
+        backdrop: `${isMobile ? '!bg-transparent !hidden' : 'bg-black/80'}`
       }}
       motionProps={{
         variants: {
@@ -285,26 +517,105 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
       <ModalContent>
         {(onClose) => (
           <>
-            <ModalHeader className="flex items-center justify-between">
-              <h2 className="text-lg sm:text-xl font-bold text-white truncate pr-2">
+            <ModalHeader className={`flex items-center justify-between ${isMobile ? 'hidden' : ''}`}>
+              <h2 className="text-base sm:text-xl font-bold text-white truncate pr-2">
                 {movieData?.title || 'Movie Player'}
               </h2>
-              <button
-                onClick={handleClose}
-                className="text-white hover:text-red-500 transition-colors p-1 rounded-full hover:bg-white/10 flex-shrink-0"
-              >
-                <AiOutlineClose className="text-xl sm:text-2xl" />
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Fullscreen/Exit Fullscreen Button - Show when video is loaded */}
+                {videoUrl && !isLoading && !isMobile && (
+                  <button
+                    onClick={toggleFullscreen}
+                    className="text-white hover:text-red-500 active:text-red-400 transition-colors p-2 sm:p-1.5 rounded-full hover:bg-white/10 active:bg-white/20 flex-shrink-0 z-50 touch-manipulation"
+                    title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+                    style={{ WebkitTapHighlightColor: 'transparent' }}
+                  >
+                    {isFullscreen ? (
+                      <BiExitFullscreen className="text-xl sm:text-2xl" />
+                    ) : (
+                      <BiFullscreen className="text-xl sm:text-2xl" />
+                    )}
+                  </button>
+                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    handleClose();
+                  }}
+                  onTouchStart={(e) => {
+                    e.stopPropagation();
+                    handleClose();
+                  }}
+                  className="text-white hover:text-red-500 active:text-red-400 transition-colors p-1 sm:p-2 rounded-full hover:bg-white/10 active:bg-white/20 flex-shrink-0 touch-manipulation z-50"
+                  title="Close"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                >
+                  <AiOutlineClose className="text-xl sm:text-2xl" />
+                </button>
+              </div>
             </ModalHeader>
-            <ModalBody className="!p-0">
-              <div className="grid md:grid-cols-2 gap-0">
+            <ModalBody className={`!p-0 ${isFullscreen && isMobile ? '!p-0' : ''}`}>
+              {/* Exit Fullscreen Button - Only visible on mobile */}
+              {isMobile && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      handleClose();
+                    }}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                      handleClose();
+                    }}
+                    className="absolute top-4 left-4 z-[10000] text-white hover:text-red-500 active:text-red-400 transition-colors p-3 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:bg-black/80 flex-shrink-0 touch-manipulation"
+                    title="Close"
+                    style={{ WebkitTapHighlightColor: 'transparent' }}
+                  >
+                    <AiOutlineClose className="text-2xl" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      toggleFullscreen();
+                    }}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                      toggleFullscreen();
+                    }}
+                    className="absolute top-4 right-4 z-[10000] text-white hover:text-red-500 active:text-red-400 transition-colors p-3 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:bg-black/80 flex-shrink-0 touch-manipulation"
+                    title="Exit Fullscreen"
+                    style={{ WebkitTapHighlightColor: 'transparent' }}
+                  >
+                    <BiExitFullscreen className="text-2xl" />
+                  </button>
+                </>
+              )}
+              <div className={`grid ${isMobile ? 'grid-cols-1' : 'md:grid-cols-2'} gap-0`}>
                 {/* Left Side - Video Player */}
                 <div 
                   ref={containerRef}
-                  className="relative w-full bg-black overflow-hidden"
-                  style={{ 
+                  className={`relative w-full bg-black ${isMobile ? 'fixed inset-0 w-screen h-screen z-[9999] rounded-none' : 'overflow-hidden'}`}
+                  style={isMobile ? {
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    width: '100vw',
+                    height: '100vh',
+                    zIndex: 9999,
+                    paddingBottom: 0,
+                    minHeight: '100vh',
+                    maxHeight: '100vh',
+                    borderRadius: 0,
+                    margin: 0
+                  } : {
                     paddingBottom: '56.25%',
                     minHeight: '300px',
+                    height: '0'
                   }}
                   onMouseMove={resetControlsTimeout}
                   onTouchStart={resetControlsTimeout}
@@ -334,7 +645,7 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
                     <>
                       <video
                         ref={videoRef}
-                        className="absolute top-0 left-0 w-full h-full object-contain"
+                        className={`absolute top-0 left-0 ${isMobile ? 'w-screen h-screen' : 'w-full h-full'} object-contain`}
                         src={videoUrl}
                         poster={movieData?.backdrop || movieData?.poster}
                         onLoadedMetadata={handleLoadedMetadata}
@@ -342,11 +653,30 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
                         onPlay={() => setIsPlaying(true)}
                         onPause={() => setIsPlaying(false)}
                         onWaiting={() => setIsLoading(true)}
-                        onCanPlay={() => setIsLoading(false)}
+                        onCanPlay={() => {
+                          setIsLoading(false);
+                          // Auto-play on mobile
+                          if (isMobile && videoRef.current && videoRef.current.paused) {
+                            videoRef.current.play().then(() => {
+                              setIsPlaying(true);
+                            }).catch(err => {
+                              console.error('Auto-play failed:', err);
+                            });
+                          }
+                        }}
                         onError={() => setError('Failed to load video')}
                         playsInline
                         autoPlay
                         preload="metadata"
+                        style={isMobile ? {
+                          width: '100vw',
+                          height: '100vh',
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          border: 'none',
+                          borderRadius: 0
+                        } : {}}
                       />
 
                       {/* Video Controls Overlay */}
@@ -430,7 +760,7 @@ const MoviePlayerModal = ({ isOpen, onClose, movieData, source }) => {
                 </div>
 
                 {/* Right Side - Movie Details */}
-                <div className="p-4 sm:p-6 space-y-4 overflow-y-auto max-h-[70vh] md:max-h-[calc(56.25vw*0.5)]">
+                <div className={`p-4 sm:p-6 space-y-4 overflow-y-auto max-h-[70vh] md:max-h-[calc(56.25vw*0.5)] ${isMobile ? 'hidden' : ''}`}>
                   {/* Genres */}
                   {movieData?.genres && movieData.genres.length > 0 && (
                     <div className="flex gap-2 flex-wrap">
