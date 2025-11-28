@@ -112,19 +112,19 @@ export default function MoviesAndSeriesDetailsSections(props) {
         video.setAttribute('x5-video-player-fullscreen', 'true');
         video.removeAttribute('crossOrigin');
         
-        // FORCE video visibility - CRITICAL FOR MOBILE
+        // FORCE video visibility - CRITICAL FOR MOBILE - Fill container perfectly
         video.style.setProperty('display', 'block', 'important');
         video.style.setProperty('visibility', 'visible', 'important');
         video.style.setProperty('opacity', '1', 'important');
         video.style.setProperty('z-index', '20', 'important');
-        video.style.setProperty('position', 'relative', 'important');
+        video.style.setProperty('position', 'absolute', 'important');
         video.style.setProperty('pointer-events', 'auto', 'important');
         video.style.setProperty('width', '100%', 'important');
-        video.style.setProperty('height', '60vh', 'important');
+        video.style.setProperty('height', '100%', 'important');
         video.style.setProperty('min-width', '100%', 'important');
-        video.style.setProperty('min-height', '60vh', 'important');
+        video.style.setProperty('min-height', '100%', 'important');
         video.style.setProperty('max-width', '100%', 'important');
-        video.style.setProperty('max-height', '60vh', 'important');
+        video.style.setProperty('max-height', '100%', 'important');
         video.style.setProperty('top', '0', 'important');
         video.style.setProperty('left', '0', 'important');
         video.style.setProperty('right', '0', 'important');
@@ -132,18 +132,25 @@ export default function MoviesAndSeriesDetailsSections(props) {
         video.style.setProperty('margin', '0', 'important');
         video.style.setProperty('padding', '0', 'important');
         video.style.setProperty('background-color', '#000', 'important');
+        video.style.setProperty('object-fit', 'cover', 'important');
+        video.style.setProperty('border-radius', '1rem', 'important');
         
-        // Also ensure container is visible
+        // Also ensure container is visible and fills parent perfectly
         if (containerRef.current) {
           containerRef.current.style.setProperty('display', 'flex', 'important');
           containerRef.current.style.setProperty('visibility', 'visible', 'important');
           containerRef.current.style.setProperty('opacity', '1', 'important');
-          containerRef.current.style.setProperty('z-index', '50', 'important');
-          containerRef.current.style.setProperty('position', 'relative', 'important');
+          containerRef.current.style.setProperty('z-index', '20', 'important');
+          containerRef.current.style.setProperty('position', 'absolute', 'important');
+          containerRef.current.style.setProperty('top', '0', 'important');
+          containerRef.current.style.setProperty('left', '0', 'important');
+          containerRef.current.style.setProperty('right', '0', 'important');
+          containerRef.current.style.setProperty('bottom', '0', 'important');
           containerRef.current.style.setProperty('width', '100%', 'important');
-          containerRef.current.style.setProperty('height', '60vh', 'important');
-          containerRef.current.style.setProperty('min-height', '60vh', 'important');
+          containerRef.current.style.setProperty('height', '100%', 'important');
+          containerRef.current.style.setProperty('min-height', '100%', 'important');
           containerRef.current.style.setProperty('background-color', '#000', 'important');
+          containerRef.current.style.setProperty('border-radius', '1rem', 'important');
         }
         
         // Load video
@@ -1663,20 +1670,23 @@ export default function MoviesAndSeriesDetailsSections(props) {
                     backgroundPosition: 'center 60%',
                     backgroundRepeat: 'no-repeat'
                   } : (isMobile && isPlayingMovie ? {
-                    minHeight: '60vh',
+                    // On mobile, fill the poster container perfectly
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
                     width: '100%',
-                    position: 'relative',
-                    zIndex: 50,
+                    height: '100%',
+                    minHeight: '100%',
+                    maxHeight: '100%',
+                    zIndex: 20,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    height: 'auto',
-                    overflow: 'visible',
+                    overflow: 'hidden',
                     backgroundColor: '#000',
-                    backgroundImage: `url(${props.movieData.backdrop || props.movieData.poster})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center 60%',
-                    backgroundRepeat: 'no-repeat'
+                    borderRadius: '1rem'
                   } : isMobile ? {
                     minHeight: '200px',
                     maxHeight: '50vh',
@@ -1772,12 +1782,19 @@ export default function MoviesAndSeriesDetailsSections(props) {
                       minWidth: '100vw',
                       minHeight: '100vh'
                     } : isMobile && isPlayingMovie ? {
+                      // On mobile, fill the container perfectly - same size as poster
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
                       width: '100%',
-                      height: '60vh',
+                      height: '100%',
                       minWidth: '100%',
-                      minHeight: '60vh',
+                      minHeight: '100%',
                       maxWidth: '100%',
-                      maxHeight: '60vh'
+                      maxHeight: '100%',
+                      objectFit: 'cover'
                     } : isMobile ? {
                       width: '100%',
                       height: '50vh',
@@ -1794,8 +1811,8 @@ export default function MoviesAndSeriesDetailsSections(props) {
                       maxHeight: '60vh'
                     }),
                     backgroundColor: '#000',
-                    objectFit: isFullscreen ? 'cover' : 'contain',
-                    position: 'relative',
+                    objectFit: isFullscreen ? 'cover' : (isMobile && isPlayingMovie ? 'cover' : 'contain'),
+                    position: isMobile && isPlayingMovie ? 'absolute' : 'relative',
                     zIndex: 20,
                     display: (isPlayingMovie && videoUrl) ? 'block !important' : 'none',
                     visibility: (isPlayingMovie && videoUrl) ? 'visible !important' : 'hidden',
@@ -1803,23 +1820,25 @@ export default function MoviesAndSeriesDetailsSections(props) {
                     pointerEvents: (isPlayingMovie && videoUrl) ? 'auto' : 'none',
                     margin: 0,
                     padding: 0,
+                    borderRadius: isMobile && isPlayingMovie ? '1rem' : '0',
                     // FORCE visibility on mobile - CRITICAL
                     ...(isMobile && isPlayingMovie && videoUrl ? {
                       width: '100% !important',
-                      height: '60vh !important',
+                      height: '100% !important',
                       minWidth: '100% !important',
-                      minHeight: '60vh !important',
+                      minHeight: '100% !important',
                       maxWidth: '100% !important',
-                      maxHeight: '60vh !important',
+                      maxHeight: '100% !important',
                       display: 'block !important',
                       visibility: 'visible !important',
                       opacity: '1 !important',
                       zIndex: '20 !important',
-                      position: 'relative !important',
+                      position: 'absolute !important',
                       top: '0 !important',
                       left: '0 !important',
                       right: '0 !important',
                       bottom: '0 !important',
+                      objectFit: 'cover !important',
                       willChange: 'auto',
                       transform: 'translateZ(0)',
                       WebkitTransform: 'translateZ(0)',
