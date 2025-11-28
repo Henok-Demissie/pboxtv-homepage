@@ -1313,20 +1313,22 @@ export default function MoviesAndSeriesDetailsSections(props) {
         video.removeAttribute('crossOrigin');
         
         // Ensure video is visible - FORCE visibility with important flags
-        // CRITICAL: Set explicit dimensions for mobile
+        // CRITICAL: On mobile, fill container perfectly (100% height/width, absolute positioning)
         if (isMobile) {
+          video.style.setProperty('position', 'absolute', 'important');
           video.style.setProperty('width', '100%', 'important');
-          video.style.setProperty('height', '60vh', 'important');
+          video.style.setProperty('height', '100%', 'important');
           video.style.setProperty('min-width', '100%', 'important');
-          video.style.setProperty('min-height', '60vh', 'important');
+          video.style.setProperty('min-height', '100%', 'important');
           video.style.setProperty('max-width', '100%', 'important');
-          video.style.setProperty('max-height', '60vh', 'important');
+          video.style.setProperty('max-height', '100%', 'important');
+          video.style.setProperty('object-fit', 'cover', 'important');
+          video.style.setProperty('border-radius', '1rem', 'important');
         }
         video.style.setProperty('display', 'block', 'important');
         video.style.setProperty('visibility', 'visible', 'important');
         video.style.setProperty('opacity', '1', 'important');
-        video.style.setProperty('z-index', '50', 'important');
-        video.style.setProperty('position', 'relative', 'important');
+        video.style.setProperty('z-index', '20', 'important');
         video.style.setProperty('pointer-events', 'auto', 'important');
         video.style.setProperty('top', '0', 'important');
         video.style.setProperty('left', '0', 'important');
@@ -1336,13 +1338,23 @@ export default function MoviesAndSeriesDetailsSections(props) {
         video.style.setProperty('padding', '0', 'important');
         video.style.setProperty('background-color', '#000', 'important');
         
-        // Ensure container is visible and scroll into view
+        // Ensure container is visible and fills parent perfectly on mobile
         if (containerRef.current) {
+          if (isMobile) {
+            containerRef.current.style.setProperty('position', 'absolute', 'important');
+            containerRef.current.style.setProperty('top', '0', 'important');
+            containerRef.current.style.setProperty('left', '0', 'important');
+            containerRef.current.style.setProperty('right', '0', 'important');
+            containerRef.current.style.setProperty('bottom', '0', 'important');
+            containerRef.current.style.setProperty('width', '100%', 'important');
+            containerRef.current.style.setProperty('height', '100%', 'important');
+            containerRef.current.style.setProperty('min-height', '100%', 'important');
+            containerRef.current.style.setProperty('border-radius', '1rem', 'important');
+          }
           containerRef.current.style.setProperty('display', 'flex', 'important');
           containerRef.current.style.setProperty('visibility', 'visible', 'important');
           containerRef.current.style.setProperty('opacity', '1', 'important');
-          containerRef.current.style.setProperty('z-index', '50', 'important');
-          containerRef.current.style.setProperty('position', 'relative', 'important');
+          containerRef.current.style.setProperty('z-index', '20', 'important');
           containerRef.current.style.setProperty('background-color', '#000', 'important');
           // Scroll container into view immediately
           setTimeout(() => {
