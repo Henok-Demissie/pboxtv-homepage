@@ -1266,41 +1266,118 @@ export default function MoviesAndSeriesDetailsSections(props) {
         errorTimeoutRef.current = null;
       }
       
-      // CRITICAL: Set video src and play SYNCHRONOUSLY within user gesture
-      // Video element is now ALWAYS rendered, so it should exist immediately
-      // Try to play IMMEDIATELY - don't wait for RAF on mobile
-      let video = videoRef.current;
+      // CRITICAL: Get video element and play SYNCHRONOUSLY - NO DELAYS
+      const video = videoRef.current;
       
-      if (!video) {
-        // If not available, check multiple times VERY quickly
-        const checkVideo = () => {
-          video = videoRef.current;
-          if (video) {
-            setupVideoAndPlay(video, downloadUrl);
-          } else {
-            setTimeout(checkVideo, 1);
-            setTimeout(checkVideo, 5);
-            setTimeout(checkVideo, 10);
+      if (video) {
+        // Video exists - play IMMEDIATELY within user gesture
+        // DO EVERYTHING SYNCHRONOUSLY - NO setTimeout, NO RAF
+        
+        // Clear previous state
+        video.pause();
+        video.removeAttribute('crossOrigin');
+        
+        // Set src and properties IMMEDIATELY
+        video.src = downloadUrl;
+        video.preload = 'auto';
+        video.playbackRate = 1;
+        video.muted = false; // Don't mute - user clicked play button
+        video.volume = 1;
+        video.playsInline = true;
+        video.setAttribute('webkit-playsinline', 'true');
+        video.setAttribute('x5-playsinline', 'true');
+        video.setAttribute('x5-video-player-type', 'h5');
+        video.setAttribute('x5-video-player-fullscreen', 'true');
+        
+        // Force visibility IMMEDIATELY
+        video.style.setProperty('display', 'block', 'important');
+        video.style.setProperty('visibility', 'visible', 'important');
+        video.style.setProperty('opacity', '1', 'important');
+        video.style.setProperty('position', 'absolute', 'important');
+        video.style.setProperty('width', '100%', 'important');
+        video.style.setProperty('height', '100%', 'important');
+        video.style.setProperty('z-index', '20', 'important');
+        
+        // Ensure container is visible
+        if (containerRef.current) {
+          containerRef.current.style.setProperty('display', 'flex', 'important');
+          containerRef.current.style.setProperty('visibility', 'visible', 'important');
+          containerRef.current.style.setProperty('opacity', '1', 'important');
+          containerRef.current.style.setProperty('position', 'absolute', 'important');
+          containerRef.current.style.setProperty('top', '0', 'important');
+          containerRef.current.style.setProperty('left', '0', 'important');
+          containerRef.current.style.setProperty('right', '0', 'important');
+          containerRef.current.style.setProperty('bottom', '0', 'important');
+          containerRef.current.style.setProperty('width', '100%', 'important');
+          containerRef.current.style.setProperty('height', '100%', 'important');
+          containerRef.current.style.setProperty('z-index', '20', 'important');
+        }
+        
+        // Load video
+        video.load();
+        
+        // CRITICAL: Try to play IMMEDIATELY - within user gesture context
+        // Try multiple times synchronously
+        try {
+          const playPromise1 = video.play();
+          if (playPromise1 !== undefined) {
+            playPromise1.then(() => {
+              setIsPlaying(true);
+              setIsLoadingPlayback(false);
+              setVideoError(null);
+              console.log('✅✅✅ MOBILE VIDEO PLAYING!');
+            }).catch(() => {});
           }
-        };
-        checkVideo();
-      } else {
-        // Video exists - play IMMEDIATELY (within user gesture context)
-        setupVideoAndPlay(video, downloadUrl);
+        } catch (e) {}
+        
+        // Try again immediately (some browsers need this)
+        try {
+          const playPromise2 = video.play();
+          if (playPromise2 !== undefined) {
+            playPromise2.then(() => {
+              setIsPlaying(true);
+              setIsLoadingPlayback(false);
+              setVideoError(null);
+            }).catch(() => {});
+          }
+        } catch (e) {}
+        
+        // Also try after load event fires
+        video.addEventListener('loadeddata', () => {
+          video.play().then(() => {
+            setIsPlaying(true);
+            setIsLoadingPlayback(false);
+            setVideoError(null);
+          }).catch(() => {});
+        }, { once: true });
+        
+        video.addEventListener('canplay', () => {
+          video.play().then(() => {
+            setIsPlaying(true);
+            setIsLoadingPlayback(false);
+            setVideoError(null);
+          }).catch(() => {});
+        }, { once: true });
+        
+        video.addEventListener('canplaythrough', () => {
+          video.play().then(() => {
+            setIsPlaying(true);
+            setIsLoadingPlayback(false);
+            setVideoError(null);
+          }).catch(() => {});
+        }, { once: true });
       }
       
-      // Also use RAF as backup to ensure DOM is updated
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const video = videoRef.current;
-          if (video && video.src === downloadUrl && video.paused) {
-            // Video exists but hasn't started playing - try again
-            setupVideoAndPlay(video, downloadUrl);
-          }
-        });
+      // Background URL loading (non-blocking)
+      loadVideoUrl(bestSource, true).catch(err => {
+        console.error('Error in background URL loading:', err);
       });
       
-      const setupVideoAndPlay = (video, url) => {
+      return;
+    }
+    
+    // Desktop logic continues below...
+    const setupVideoAndPlay = (video, url) => {
         // Clear any error states and timeouts
         setVideoError(null);
         if (errorTimeoutRef.current) {
