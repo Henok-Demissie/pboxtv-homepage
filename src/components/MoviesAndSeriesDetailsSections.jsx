@@ -81,6 +81,48 @@ export default function MoviesAndSeriesDetailsSections(props) {
     }
   }, [props.movieData?.backdrop]);
 
+  // Auto-play video on desktop when URL is set
+  useEffect(() => {
+    if (!isMobile && videoUrl && isPlayingMovie && videoRef.current) {
+      const video = videoRef.current;
+      
+      // Ensure video has src set
+      if (video.src !== videoUrl) {
+        video.src = videoUrl;
+        video.load();
+      }
+      
+      // Try to play when video is ready
+      const attemptPlay = () => {
+        if (video && video.src && !video.paused) return; // Already playing
+        
+        if (video.readyState >= 2) { // HAVE_CURRENT_DATA or higher
+          video.play()
+            .then(() => {
+              setIsPlaying(true);
+              setIsLoadingPlayback(false);
+              setVideoError(null);
+              console.log('✅ Desktop video is playing');
+            })
+            .catch((err) => {
+              console.log('Desktop play attempt failed, will retry:', err);
+            });
+        }
+      };
+      
+      // Try immediately and on video events
+      attemptPlay();
+      video.addEventListener('canplay', attemptPlay, { once: true });
+      video.addEventListener('loadeddata', attemptPlay, { once: true });
+      video.addEventListener('canplaythrough', attemptPlay, { once: true });
+      
+      // Also try with delays
+      setTimeout(attemptPlay, 100);
+      setTimeout(attemptPlay, 500);
+      setTimeout(attemptPlay, 1000);
+    }
+  }, [videoUrl, isPlayingMovie, isMobile]);
+
   // Auto-play video on mobile when URL is set and video element is ready
   useEffect(() => {
     if (isMobile && videoUrl && isPlayingMovie) {
@@ -1798,6 +1840,20 @@ export default function MoviesAndSeriesDetailsSections(props) {
                               videoRef.current.style.setProperty('opacity', '1', 'important');
                               videoRef.current.style.setProperty('z-index', '50', 'important');
                               videoRef.current.style.setProperty('position', 'relative', 'important');
+                              
+                              // On desktop, try to play when data is loaded
+                              if (!isMobile && isPlayingMovie && videoRef.current.paused) {
+                                videoRef.current.play()
+                                  .then(() => {
+                                    setIsPlaying(true);
+                                    setIsLoadingPlayback(false);
+                                    setVideoError(null);
+                                    console.log('✅ Desktop video playing after loadedData');
+                                  })
+                                  .catch((err) => {
+                                    console.log('Desktop play on loadedData failed:', err);
+                                  });
+                              }
                             }
                             
                             // Ensure container is visible
