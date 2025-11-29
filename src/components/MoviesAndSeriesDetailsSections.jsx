@@ -1095,9 +1095,6 @@ export default function MoviesAndSeriesDetailsSections(props) {
       const newWindow = window.open('', '_blank', 'width=1200,height=800');
       if (!newWindow) {
         setIsLoadingPlayback(false);
-        // Don't redirect directly - that causes download
-        // Instead, show error or try inline playback
-        console.error('Could not open new window');
         return;
       }
 
@@ -1124,7 +1121,17 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 width: 100%; 
                 height: 100vh; 
                 max-width: 100vw; 
-                object-fit: contain; 
+                object-fit: contain;
+                background: #000;
+                outline: none;
+              }
+              
+              video::-webkit-media-controls {
+                display: flex !important;
+              }
+              
+              video::-webkit-media-controls-panel {
+                display: flex !important;
               }
               .loading {
                 color: white;
@@ -1136,6 +1143,9 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 transform: translate(-50%, -50%);
                 z-index: 100;
                 display: none;
+                font-size: 16px;
+                background: rgba(0, 0, 0, 0.7);
+                border-radius: 8px;
               }
               .title-overlay {
                 position: absolute;
@@ -1157,9 +1167,11 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 bottom: 20px;
                 left: 50%;
                 transform: translateX(-50%);
-                display: none;
+                display: none !important;
                 gap: 10px;
-                z-index: 100;
+                z-index: -1;
+                visibility: hidden;
+                opacity: 0;
               }
               .fallback-btn {
                 background: rgba(239, 68, 68, 0.8);
@@ -1199,7 +1211,6 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 let timeoutId;
 
                 if (!video) {
-                  console.error('Video element not found');
                   return;
                 }
 
@@ -1219,53 +1230,61 @@ export default function MoviesAndSeriesDetailsSections(props) {
                   video.setAttribute('webkit-playsinline', 'true');
                   video.setAttribute('x5-playsinline', 'true');
                   video.setAttribute('controls', 'true');
+                  // Start muted for autoplay compatibility, then unmute when ready
+                  video.muted = true;
+                  video.volume = 1;
                   
                   // Prevent download button in controls (if supported)
                   try {
                     video.setAttribute('controlsList', 'nodownload');
-                  } catch (e) {
-                    // Some browsers don't support controlsList
-                  }
+                  } catch (e) {}
                   
                   // Load the video
                   video.load();
                   
-                  // Ensure video doesn't trigger download
-                  video.addEventListener('error', function(e) {
-                    // If error occurs, don't let it download
-                    e.preventDefault();
-                  }, { once: true });
-                  
                 } catch (err) {
-                  console.error('Error setting video src:', err);
+                  // Silently handle errors
                 }
 
                 // Handle video errors silently - don't show error messages
                 video.addEventListener('error', (e) => {
                   try {
-                    const error = video.error;
-                    if (error) {
-                      console.error('Video error code:', error.code, 'Message:', error.message);
-                      // Don't show error messages - just try to recover
-                      // Hide loading and let user use controls
-                      if (loading) loading.style.display = 'none';
-                      if (fallbackOptions) fallbackOptions.classList.remove('show-fallback');
-                      if (timeoutId) clearTimeout(timeoutId);
-                    }
+                    // Silently handle errors - don't show anything
+                    if (loading) loading.style.display = 'none';
+                    if (fallbackOptions) fallbackOptions.classList.remove('show-fallback');
+                    if (timeoutId) clearTimeout(timeoutId);
+                    
+                    // Try to recover by reloading
+                    setTimeout(() => {
+                      if (video && video.error) {
+                        try {
+                          const currentSrc = video.src;
+                          video.src = '';
+                          video.load();
+                          setTimeout(() => {
+                            if (video) {
+                              video.src = currentSrc;
+                              video.load();
+                            }
+                          }, 500);
+                        } catch (reloadErr) {
+                          // Silently fail
+                        }
+                      }
+                    }, 1000);
                   } catch (err) {
-                    console.error('Error in error handler:', err);
+                    // Silently handle all errors
                   }
                 });
 
                 video.addEventListener('loadstart', () => {
                   try {
-                    // Don't show timeout message - let video load naturally
                     if (loading) {
                       loading.style.display = 'block';
                       loading.innerHTML = 'Loading video...';
                     }
                   } catch (err) {
-                    console.error('Error in loadstart handler:', err);
+                    // Silently handle
                   }
                 });
 
@@ -1273,8 +1292,17 @@ export default function MoviesAndSeriesDetailsSections(props) {
                   try {
                     if (loading) loading.style.display = 'none';
                     if (timeoutId) clearTimeout(timeoutId);
+                    // Unmute and try to play when data is loaded
+                    if (video) {
+                      video.muted = false;
+                      if (video.paused) {
+                        video.play().catch(() => {
+                          // Silently handle autoplay prevention
+                        });
+                      }
+                    }
                   } catch (err) {
-                    console.error('Error in loadeddata handler:', err);
+                    // Silently handle
                   }
                 });
 
@@ -1291,9 +1319,41 @@ export default function MoviesAndSeriesDetailsSections(props) {
                       }, 3000);
                     }
                   } catch (err) {
-                    console.error('Error in playing handler:', err);
+                    // Silently handle
                   }
                 });
+                
+                // Also try to play on canplay event
+                video.addEventListener('canplay', () => {
+                  try {
+                    if (video) {
+                      video.muted = false;
+                      if (video.paused && !hasStartedPlaying) {
+                        video.play().catch(() => {
+                          // Silently handle autoplay prevention
+                        });
+                      }
+                    }
+                  } catch (err) {
+                    // Silently handle
+                  }
+                }, { once: true });
+                
+                video.addEventListener('canplaythrough', () => {
+                  try {
+                    if (loading) loading.style.display = 'none';
+                    if (video) {
+                      video.muted = false;
+                      if (video.paused && !hasStartedPlaying) {
+                        video.play().catch(() => {
+                          // Silently handle autoplay prevention
+                        });
+                      }
+                    }
+                  } catch (err) {
+                    // Silently handle
+                  }
+                }, { once: true });
 
 
                 function openVLC() {
@@ -1308,7 +1368,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                       window.open(videoUrl, '_blank');
                     }
                   } catch (err) {
-                    console.error('Error in openVLC:', err);
+                    // Silently handle
                   }
                 }
 
@@ -1322,7 +1382,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                     a.click();
                     document.body.removeChild(a);
                   } catch (err) {
-                    console.error('Error in downloadFile:', err);
+                    // Silently handle
                   }
                 }
 
@@ -1330,7 +1390,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                   try {
                     window.open("${escapedUrl}", '_blank');
                   } catch (err) {
-                    console.error('Error in openDirect:', err);
+                    // Silently handle
                   }
                 }
 
@@ -1339,18 +1399,42 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 window.downloadFile = downloadFile;
                 window.openDirect = openDirect;
 
-                // Try to play after a delay
+                // Try to play after a delay - multiple attempts
                 setTimeout(() => {
                   try {
-                    if (video && video.readyState >= 2) {
+                    if (video && video.readyState >= 2 && video.paused) {
                       video.play().catch(() => {
                         // Silently handle autoplay errors
                       });
                     }
                   } catch (err) {
-                    console.error('Error attempting play:', err);
+                    // Silently handle
                   }
-                }, 1000);
+                }, 500);
+                
+                setTimeout(() => {
+                  try {
+                    if (video && video.readyState >= 2 && video.paused) {
+                      video.play().catch(() => {
+                        // Silently handle autoplay errors
+                      });
+                    }
+                  } catch (err) {
+                    // Silently handle
+                  }
+                }, 1500);
+                
+                setTimeout(() => {
+                  try {
+                    if (video && video.readyState >= 2 && video.paused) {
+                      video.play().catch(() => {
+                        // Silently handle autoplay errors
+                      });
+                    }
+                  } catch (err) {
+                    // Silently handle
+                  }
+                }, 3000);
               })();
             </script>
           </body>
@@ -1359,9 +1443,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
       newWindow.document.close();
 
     } catch (error) {
-      console.error("Direct play failed:", error);
-      // Don't redirect directly - that causes download
-      // Just log the error and stop loading
+      // Silently handle errors
       setIsLoadingPlayback(false);
     } finally {
       setIsLoadingPlayback(false);
