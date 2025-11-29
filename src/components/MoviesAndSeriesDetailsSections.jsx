@@ -1180,116 +1180,147 @@ export default function MoviesAndSeriesDetailsSections(props) {
           <body>
             <div class="loading" id="loadingMsg"></div>
             <div class="title-overlay" id="titleOverlay">${title || source.name}</div>
-            <video controls preload="auto" playsinline id="videoPlayer" style="width: 100%; height: 100vh; object-fit: contain;" muted>
+            <video controls preload="auto" playsinline id="videoPlayer" style="width: 100%; height: 100vh; object-fit: contain;">
             </video>
-            <script>
-              // Set video src directly - this works better than source tags
-              const video = document.getElementById('videoPlayer');
-              if (video) {
-                // Remove muted after setting src
-                video.muted = false;
-                video.src = "${escapedUrl}";
-                video.load();
-                
-                // Try to play when ready
-                video.addEventListener('canplay', () => {
-                  video.muted = false;
-                  video.play().catch(err => {
-                    // Silently handle autoplay errors
-                    console.log('Auto-play prevented, user can click to play');
-                  });
-                }, { once: true });
-                
-                // Also try on loadeddata
-                video.addEventListener('loadeddata', () => {
-                  video.muted = false;
-                }, { once: true });
-              }
-            </script>
             <div class="fallback-options" id="fallbackOptions">
               <button class="fallback-btn" onclick="openVLC()">Open in VLC</button>
               <button class="fallback-btn" onclick="downloadFile()">Download</button>
               <button class="fallback-btn" onclick="openDirect()">Direct Link</button>
             </div>
             <script>
-              const video = document.getElementById('videoPlayer');
-              const loading = document.getElementById('loadingMsg');
-              const titleOverlay = document.getElementById('titleOverlay');
-              const fallbackOptions = document.getElementById('fallbackOptions');
-              let hasStartedPlaying = false;
-              let timeoutId;
+              (function() {
+                const video = document.getElementById('videoPlayer');
+                const loading = document.getElementById('loadingMsg');
+                const titleOverlay = document.getElementById('titleOverlay');
+                const fallbackOptions = document.getElementById('fallbackOptions');
+                let hasStartedPlaying = false;
+                let timeoutId;
 
-              // Ensure video src is set
-              if (video && !video.src) {
-                video.src = "${escapedUrl}";
-                video.load();
-              }
-
-              // Handle video errors silently - don't show error messages
-              video.addEventListener('error', (e) => {
-                const error = video.error;
-                if (error) {
-                  console.error('Video error code:', error.code, 'Message:', error.message);
-                  // Don't show error messages - just try to recover
-                  // Hide loading and let user use controls
-                  loading.style.display = 'none';
-                  fallbackOptions.classList.remove('show-fallback');
-                  clearTimeout(timeoutId);
+                if (!video) {
+                  console.error('Video element not found');
+                  return;
                 }
-              });
 
-              video.addEventListener('loadstart', () => {
-                // Don't show timeout message - let video load naturally
-                loading.style.display = 'block';
-                loading.innerHTML = 'Loading video...';
-              });
+                // Set video src
+                try {
+                  video.src = "${escapedUrl}";
+                  video.load();
+                } catch (err) {
+                  console.error('Error setting video src:', err);
+                }
 
-              video.addEventListener('loadeddata', () => {
-                loading.style.display = 'none';
-                clearTimeout(timeoutId);
-              });
+                // Handle video errors silently - don't show error messages
+                video.addEventListener('error', (e) => {
+                  try {
+                    const error = video.error;
+                    if (error) {
+                      console.error('Video error code:', error.code, 'Message:', error.message);
+                      // Don't show error messages - just try to recover
+                      // Hide loading and let user use controls
+                      if (loading) loading.style.display = 'none';
+                      if (fallbackOptions) fallbackOptions.classList.remove('show-fallback');
+                      if (timeoutId) clearTimeout(timeoutId);
+                    }
+                  } catch (err) {
+                    console.error('Error in error handler:', err);
+                  }
+                });
 
-              video.addEventListener('playing', () => {
-                hasStartedPlaying = true;
-                loading.style.display = 'none';
-                fallbackOptions.classList.remove('show-fallback');
-                clearTimeout(timeoutId);
-                
+                video.addEventListener('loadstart', () => {
+                  try {
+                    // Don't show timeout message - let video load naturally
+                    if (loading) {
+                      loading.style.display = 'block';
+                      loading.innerHTML = 'Loading video...';
+                    }
+                  } catch (err) {
+                    console.error('Error in loadstart handler:', err);
+                  }
+                });
+
+                video.addEventListener('loadeddata', () => {
+                  try {
+                    if (loading) loading.style.display = 'none';
+                    if (timeoutId) clearTimeout(timeoutId);
+                  } catch (err) {
+                    console.error('Error in loadeddata handler:', err);
+                  }
+                });
+
+                video.addEventListener('playing', () => {
+                  try {
+                    hasStartedPlaying = true;
+                    if (loading) loading.style.display = 'none';
+                    if (fallbackOptions) fallbackOptions.classList.remove('show-fallback');
+                    if (timeoutId) clearTimeout(timeoutId);
+                    
+                    if (titleOverlay) {
+                      setTimeout(() => {
+                        if (titleOverlay) titleOverlay.style.opacity = '0';
+                      }, 3000);
+                    }
+                  } catch (err) {
+                    console.error('Error in playing handler:', err);
+                  }
+                });
+
+
+                function openVLC() {
+                  try {
+                    const userAgent = navigator.userAgent;
+                    const videoUrl = "${escapedUrl}";
+                    if (/Android/i.test(userAgent)) {
+                      window.location.href = 'intent:' + videoUrl + '#Intent;package=org.videolan.vlc;type=video/*;action=android.intent.action.VIEW;S.title=${encodeURIComponent(source.name.replace(/'/g, "\\'"))};end;';
+                    } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
+                      window.location.href = 'vlc-x-callback://x-callback-url/stream?url=' + encodeURIComponent(videoUrl);
+                    } else {
+                      window.open(videoUrl, '_blank');
+                    }
+                  } catch (err) {
+                    console.error('Error in openVLC:', err);
+                  }
+                }
+
+                function downloadFile() {
+                  try {
+                    const a = document.createElement('a');
+                    a.href = "${escapedUrl}";
+                    a.download = '${source.name.replace(/'/g, "\\'")}';
+                    a.target = '_blank';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                  } catch (err) {
+                    console.error('Error in downloadFile:', err);
+                  }
+                }
+
+                function openDirect() {
+                  try {
+                    window.open("${escapedUrl}", '_blank');
+                  } catch (err) {
+                    console.error('Error in openDirect:', err);
+                  }
+                }
+
+                // Make functions globally available
+                window.openVLC = openVLC;
+                window.downloadFile = downloadFile;
+                window.openDirect = openDirect;
+
+                // Try to play after a delay
                 setTimeout(() => {
-                  titleOverlay.style.opacity = '0';
-                }, 3000);
-              });
-
-
-              function openVLC() {
-                const userAgent = navigator.userAgent;
-                const videoUrl = "${escapedUrl}";
-                if (/Android/i.test(userAgent)) {
-                  window.location.href = 'intent:' + videoUrl + '#Intent;package=org.videolan.vlc;type=video/*;action=android.intent.action.VIEW;S.title=${encodeURIComponent(source.name.replace(/'/g, "\\'"))};end;';
-                } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
-                  window.location.href = 'vlc-x-callback://x-callback-url/stream?url=' + encodeURIComponent(videoUrl);
-                } else {
-                  window.open(videoUrl, '_blank');
-                }
-              }
-
-              function downloadFile() {
-                const a = document.createElement('a');
-                a.href = "${escapedUrl}";
-                a.download = '${source.name.replace(/'/g, "\\'")}';
-                a.target = '_blank';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-              }
-
-              function openDirect() {
-                window.open("${escapedUrl}", '_blank');
-              }
-
-              setTimeout(() => {
-                video.play().catch(() => {});
-              }, 1000);
+                  try {
+                    if (video && video.readyState >= 2) {
+                      video.play().catch(() => {
+                        // Silently handle autoplay errors
+                      });
+                    }
+                  } catch (err) {
+                    console.error('Error attempting play:', err);
+                  }
+                }, 1000);
+              })();
             </script>
           </body>
         </html>
