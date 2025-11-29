@@ -1095,8 +1095,9 @@ export default function MoviesAndSeriesDetailsSections(props) {
       const newWindow = window.open('', '_blank', 'width=1200,height=800');
       if (!newWindow) {
         setIsLoadingPlayback(false);
-        // Don't show fallback dialog - just try opening in same window
-        window.location.href = shortUrl;
+        // Don't redirect directly - that causes download
+        // Instead, show error or try inline playback
+        console.error('Could not open new window');
         return;
       }
 
@@ -1105,7 +1106,8 @@ export default function MoviesAndSeriesDetailsSections(props) {
         <html>
           <head>
             <title>${title || source.name}</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+            <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: *; media-src *; video-src *;">
             <style>
               body { 
                 margin: 0; 
@@ -1180,7 +1182,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
           <body>
             <div class="loading" id="loadingMsg"></div>
             <div class="title-overlay" id="titleOverlay">${title || source.name}</div>
-            <video controls preload="auto" playsinline id="videoPlayer" style="width: 100%; height: 100vh; object-fit: contain;">
+            <video controls preload="auto" playsinline webkit-playsinline x5-playsinline id="videoPlayer" style="width: 100%; height: 100vh; object-fit: contain;" controlsList="nodownload">
             </video>
             <div class="fallback-options" id="fallbackOptions">
               <button class="fallback-btn" onclick="openVLC()">Open in VLC</button>
@@ -1201,10 +1203,39 @@ export default function MoviesAndSeriesDetailsSections(props) {
                   return;
                 }
 
-                // Set video src
+                // Set video src with proper configuration to prevent download
                 try {
+                  // Remove any download attribute
+                  video.removeAttribute('download');
+                  video.removeAttribute('crossOrigin');
+                  video.crossOrigin = null;
+                  
+                  // Set the source directly - browser should treat it as media
                   video.src = "${escapedUrl}";
+                  
+                  // Ensure it's configured to play, not download
+                  video.setAttribute('preload', 'auto');
+                  video.setAttribute('playsinline', 'true');
+                  video.setAttribute('webkit-playsinline', 'true');
+                  video.setAttribute('x5-playsinline', 'true');
+                  video.setAttribute('controls', 'true');
+                  
+                  // Prevent download button in controls (if supported)
+                  try {
+                    video.setAttribute('controlsList', 'nodownload');
+                  } catch (e) {
+                    // Some browsers don't support controlsList
+                  }
+                  
+                  // Load the video
                   video.load();
+                  
+                  // Ensure video doesn't trigger download
+                  video.addEventListener('error', function(e) {
+                    // If error occurs, don't let it download
+                    e.preventDefault();
+                  }, { once: true });
+                  
                 } catch (err) {
                   console.error('Error setting video src:', err);
                 }
@@ -1329,14 +1360,9 @@ export default function MoviesAndSeriesDetailsSections(props) {
 
     } catch (error) {
       console.error("Direct play failed:", error);
-      // Don't show fallback dialog - just redirect to video URL directly
-      try {
-        const downloadUrl = generateDownloadUrl(source.id, source.name);
-        const shortUrl = await shortenUrl(downloadUrl);
-        window.location.href = shortUrl;
-      } catch (err) {
-        console.error("Failed to redirect:", err);
-      }
+      // Don't redirect directly - that causes download
+      // Just log the error and stop loading
+      setIsLoadingPlayback(false);
     } finally {
       setIsLoadingPlayback(false);
     }
