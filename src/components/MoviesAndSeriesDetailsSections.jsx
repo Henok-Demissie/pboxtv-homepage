@@ -1179,14 +1179,13 @@ export default function MoviesAndSeriesDetailsSections(props) {
           <body>
             <div class="loading" id="loadingMsg"></div>
             <div class="title-overlay" id="titleOverlay">${title || source.name}</div>
-            <video controls preload="auto" playsinline crossorigin="anonymous" id="videoPlayer" style="width: 100%; height: 100vh; object-fit: contain;">
+            <video controls preload="auto" playsinline id="videoPlayer" style="width: 100%; height: 100vh; object-fit: contain;">
             </video>
             <script>
               // Set video src directly - this works better than source tags
               const video = document.getElementById('videoPlayer');
               if (video) {
                 video.src = "${escapedUrl}";
-                video.crossOrigin = "anonymous";
                 video.load();
                 
                 // Try to play when ready
