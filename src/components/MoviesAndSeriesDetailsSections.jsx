@@ -1095,7 +1095,8 @@ export default function MoviesAndSeriesDetailsSections(props) {
       const newWindow = window.open('', '_blank', 'width=1200,height=800');
       if (!newWindow) {
         setIsLoadingPlayback(false);
-        await showFallbackOptions(source, title);
+        // Don't show fallback dialog - just try opening in same window
+        window.location.href = shortUrl;
         return;
       }
 
@@ -1179,18 +1180,29 @@ export default function MoviesAndSeriesDetailsSections(props) {
           <body>
             <div class="loading" id="loadingMsg"></div>
             <div class="title-overlay" id="titleOverlay">${title || source.name}</div>
-            <video controls preload="auto" playsinline id="videoPlayer" style="width: 100%; height: 100vh; object-fit: contain;">
+            <video controls preload="auto" playsinline id="videoPlayer" style="width: 100%; height: 100vh; object-fit: contain;" muted>
             </video>
             <script>
               // Set video src directly - this works better than source tags
               const video = document.getElementById('videoPlayer');
               if (video) {
+                // Remove muted after setting src
+                video.muted = false;
                 video.src = "${escapedUrl}";
                 video.load();
                 
                 // Try to play when ready
                 video.addEventListener('canplay', () => {
-                  video.play().catch(err => console.log('Auto-play prevented:', err));
+                  video.muted = false;
+                  video.play().catch(err => {
+                    // Silently handle autoplay errors
+                    console.log('Auto-play prevented, user can click to play');
+                  });
+                }, { once: true });
+                
+                // Also try on loadeddata
+                video.addEventListener('loadeddata', () => {
+                  video.muted = false;
                 }, { once: true });
               }
             </script>
@@ -1213,33 +1225,23 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 video.load();
               }
 
-              // Handle video errors with better messages
+              // Handle video errors silently - don't show error messages
               video.addEventListener('error', (e) => {
                 const error = video.error;
                 if (error) {
                   console.error('Video error code:', error.code, 'Message:', error.message);
-                  if (error.code === 4) {
-                    // MEDIA_ERR_SRC_NOT_SUPPORTED
-                    loading.innerHTML = 'Video format not supported. Try alternative options:';
-                  } else {
-                    loading.innerHTML = 'Failed to load video. Try alternative options:';
-                  }
-                } else {
-                  loading.innerHTML = 'Failed to load video. Try alternative options:';
+                  // Don't show error messages - just try to recover
+                  // Hide loading and let user use controls
+                  loading.style.display = 'none';
+                  fallbackOptions.classList.remove('show-fallback');
+                  clearTimeout(timeoutId);
                 }
-                loading.style.display = 'block';
-                fallbackOptions.classList.add('show-fallback');
-                clearTimeout(timeoutId);
               });
 
               video.addEventListener('loadstart', () => {
-                timeoutId = setTimeout(() => {
-                  if (!hasStartedPlaying) {
-                    loading.innerHTML = 'Having trouble loading? Try alternative options below:';
-                    loading.style.display = 'block';
-                    fallbackOptions.classList.add('show-fallback');
-                  }
-                }, 20000);
+                // Don't show timeout message - let video load naturally
+                loading.style.display = 'block';
+                loading.innerHTML = 'Loading video...';
               });
 
               video.addEventListener('loadeddata', () => {
@@ -1296,7 +1298,14 @@ export default function MoviesAndSeriesDetailsSections(props) {
 
     } catch (error) {
       console.error("Direct play failed:", error);
-      await showFallbackOptions(source, title);
+      // Don't show fallback dialog - just redirect to video URL directly
+      try {
+        const downloadUrl = generateDownloadUrl(source.id, source.name);
+        const shortUrl = await shortenUrl(downloadUrl);
+        window.location.href = shortUrl;
+      } catch (err) {
+        console.error("Failed to redirect:", err);
+      }
     } finally {
       setIsLoadingPlayback(false);
     }
