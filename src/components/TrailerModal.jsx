@@ -274,13 +274,18 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
       return `https://www.youtube.com/embed?listType=search&list=${searchQuery}&rel=0&modestbranding=1&playsinline=1&fs=1&controls=1`;
     }
     
-    // Use regular YouTube domain - ensure it works on mobile
-    // Mobile requires: playsinline=1, no autoplay (user must tap), proper origin
+    // Use regular YouTube domain - optimized for mobile playback
     const origin = typeof window !== 'undefined' ? encodeURIComponent(window.location.origin) : '';
+    const isMobile = typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
-    // Clean embed URL optimized for mobile - user taps play button
-    // Remove autoplay completely for mobile compatibility
-    return `https://www.youtube.com/embed/${trailerVideoId}?rel=0&modestbranding=1&playsinline=1&fs=1&controls=1&iv_load_policy=3&cc_load_policy=0&enablejsapi=1${origin ? `&origin=${origin}` : ''}`;
+    // Mobile-optimized embed URL
+    // Key parameters for mobile: playsinline=1 (iOS), controls=1, no autoplay
+    // Remove autoplay for mobile - user must tap to play (required by mobile browsers)
+    const baseUrl = `https://www.youtube.com/embed/${trailerVideoId}?rel=0&modestbranding=1&playsinline=1&fs=1&controls=1&iv_load_policy=3&cc_load_policy=0&enablejsapi=1`;
+    const originParam = origin ? `&origin=${origin}` : '';
+    const referrerParam = origin ? `&widget_referrer=${origin}` : '';
+    
+    return `${baseUrl}${originParam}${referrerParam}`;
   };
 
   return (
@@ -332,81 +337,83 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
                 <AiOutlineClose className="text-xl md:text-2xl" />
               </button>
             </ModalHeader>
-            <ModalBody className="overflow-hidden">
-              {isLoading ? (
-                <div className="flex items-center justify-center" style={{ minHeight: '50vh', maxHeight: '70vh' }}>
-                  <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-                </div>
-              ) : error ? (
-                <div className="flex flex-col items-center justify-center text-white p-6" style={{ minHeight: '50vh', maxHeight: '70vh' }}>
-                  <p className="text-base md:text-lg mb-4 text-center">{error}</p>
-                  <a
-                    href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`${movieTitle} ${releaseYear || ''} trailer`)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-red-500 hover:text-red-400 underline text-sm md:text-base"
-                  >
-                    Search on YouTube
-                  </a>
-                </div>
-              ) : (
-                <div 
-                  className="relative w-full bg-black rounded-lg overflow-hidden"
-                  style={{ 
-                    paddingBottom: '56.25%',
-                    minHeight: '200px',
-                    maxHeight: 'calc(90vh - 100px)',
-                    width: '100%',
-                    position: 'relative'
-                  }}
-                >
-                  <iframe
-                    key={trailerVideoId} // Force re-render when video ID changes
-                    className="absolute top-0 left-0 w-full h-full rounded-lg"
-                    src={getYouTubeEmbedUrl()}
-                    title={`${movieTitle} Trailer`}
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-                    allowFullScreen={true}
-                    style={{ 
-                      border: 'none', 
-                      width: '100%', 
-                      height: '100%',
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      display: 'block',
-                      maxWidth: '100%',
-                      maxHeight: '100%'
-                    }}
-                    loading="eager"
-                    playsInline={true}
-                    onLoad={() => {
-                      setVideoError(false);
-                    }}
-                    onError={() => {
-                      // If video fails to load, try next video
-                      if (videoIds.length > currentVideoIndex + 1) {
-                        const nextIndex = currentVideoIndex + 1;
-                        setCurrentVideoIndex(nextIndex);
-                        setTrailerVideoId(videoIds[nextIndex]);
-                      } else {
-                        setError('This trailer is unavailable. Please search on YouTube.');
-                      }
-                    }}
-                  ></iframe>
-                  
-                  {/* Fallback message if video doesn't load */}
-                  {videoError && videoIds.length > currentVideoIndex + 1 && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
-                      <div className="text-center text-white">
-                        <p className="mb-2">Trying next trailer...</p>
-                        <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <ModalBody className="overflow-hidden p-0">
+              {/* Fixed container size for all states - prevents layout shift */}
+              <div 
+                className="relative w-full bg-black rounded-lg overflow-hidden"
+                style={{ 
+                  paddingBottom: '56.25%', // 16:9 aspect ratio
+                  minHeight: '250px',
+                  maxHeight: 'calc(90vh - 120px)',
+                  width: '100%',
+                  position: 'relative',
+                  height: 0 // This with paddingBottom creates the aspect ratio
+                }}
+              >
+                {isLoading ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black">
+                    <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                ) : error ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 bg-black">
+                    <p className="text-base md:text-lg mb-4 text-center">{error}</p>
+                    <a
+                      href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`${movieTitle} ${releaseYear || ''} trailer`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-red-500 hover:text-red-400 underline text-sm md:text-base"
+                    >
+                      Search on YouTube
+                    </a>
+                  </div>
+                ) : (
+                  <>
+                    <iframe
+                      key={trailerVideoId} // Force re-render when video ID changes
+                      className="absolute top-0 left-0 w-full h-full rounded-lg"
+                      src={getYouTubeEmbedUrl()}
+                      title={`${movieTitle} Trailer`}
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                      allowFullScreen={true}
+                      style={{ 
+                        border: 'none', 
+                        width: '100%', 
+                        height: '100%',
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        display: 'block'
+                      }}
+                      loading="eager"
+                      playsInline={true}
+                      onLoad={() => {
+                        setVideoError(false);
+                      }}
+                      onError={() => {
+                        // If video fails to load, try next video
+                        if (videoIds.length > currentVideoIndex + 1) {
+                          const nextIndex = currentVideoIndex + 1;
+                          setCurrentVideoIndex(nextIndex);
+                          setTrailerVideoId(videoIds[nextIndex]);
+                        } else {
+                          setError('This trailer is unavailable. Please search on YouTube.');
+                        }
+                      }}
+                    ></iframe>
+                    
+                    {/* Fallback message if video doesn't load */}
+                    {videoError && videoIds.length > currentVideoIndex + 1 && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
+                        <div className="text-center text-white">
+                          <p className="mb-2">Trying next trailer...</p>
+                          <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                    )}
+                  </>
+                )}
+              </div>
             </ModalBody>
           </>
         )}
