@@ -1,506 +1,301 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Modal, ModalContent, ModalHeader, ModalBody } from "@nextui-org/modal";
+import React, { useState, useEffect } from "react";
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+} from "@nextui-org/modal";
 import { AiOutlineClose } from "react-icons/ai";
-import { BiFullscreen, BiExitFullscreen } from "react-icons/bi";
+import axios from "axios";
 
 const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
-  const [videoId, setVideoId] = useState(null);
+  const [trailerVideoId, setTrailerVideoId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isMobile, setIsMobile] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const containerRef = useRef(null);
-  const iframeRef = useRef(null);
+  const [videoError, setVideoError] = useState(false);
+  const [videoIds, setVideoIds] = useState([]);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 640);
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  // Handle fullscreen changes
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      const isCurrentlyFullscreen = !!(
-        document.fullscreenElement || 
-        document.webkitFullscreenElement || 
-        document.mozFullScreenElement || 
-        document.msFullscreenElement ||
-        document.webkitCurrentFullScreenElement
-      );
-      setIsFullscreen(isCurrentlyFullscreen);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-    };
-  }, []);
-
-  // Hide body scroll and adjust styles when in fullscreen on mobile
-  useEffect(() => {
-    if (isFullscreen && isMobile) {
-      // Prevent body scroll
-      document.body.style.overflow = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.width = '100%';
-      document.body.style.height = '100%';
+    if (isOpen && movieTitle) {
+      fetchTrailer();
     } else {
-      // Restore body scroll
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
-      document.body.style.height = '';
+      // Reset when modal closes
+      setTrailerVideoId(null);
+      setIsLoading(true);
+      setError(null);
+      setVideoError(false);
+      setVideoIds([]);
+      setCurrentVideoIndex(0);
     }
+  }, [isOpen, movieTitle, releaseYear]);
 
-    return () => {
-      // Cleanup: restore body scroll
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
-      document.body.style.height = '';
-    };
-  }, [isFullscreen, isMobile]);
-
-  const toggleFullscreen = async () => {
-    if (!containerRef.current) return;
-
-    const container = containerRef.current;
-    const iframe = iframeRef.current;
-
-    if (!isFullscreen) {
-      // Enter fullscreen
-      try {
-        // Try to fullscreen the iframe first (works better for YouTube)
-        if (iframe) {
-          if (iframe.requestFullscreen) {
-            await iframe.requestFullscreen();
-            return;
-          } else if (iframe.webkitRequestFullscreen) {
-            await iframe.webkitRequestFullscreen();
-            return;
-          } else if (iframe.mozRequestFullScreen) {
-            await iframe.mozRequestFullScreen();
-            return;
-          } else if (iframe.msRequestFullscreen) {
-            await iframe.msRequestFullscreen();
-            return;
+  const extractVideoIdsFromHtml = (htmlContent) => {
+    if (!htmlContent || typeof htmlContent !== 'string') return [];
+    
+    const videoIds = new Set(); // Use Set to avoid duplicates
+    
+    // Method 1: Extract from ytInitialData JSON (most reliable - get all videos)
+    try {
+      const ytInitialDataPatterns = [
+        /var ytInitialData = ({.+?});/s,
+        /window\["ytInitialData"\] = ({.+?});/s,
+        /ytInitialData = ({.+?});/s
+      ];
+      
+      for (const pattern of ytInitialDataPatterns) {
+        const match = htmlContent.match(pattern);
+        if (match && match[1]) {
+          try {
+            const ytData = JSON.parse(match[1]);
+            const contents = ytData?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents;
+            
+            if (contents && Array.isArray(contents)) {
+              for (const item of contents) {
+                if (item?.videoRenderer?.videoId) {
+                  const vid = item.videoRenderer.videoId;
+                  if (vid && vid.length === 11 && /^[a-zA-Z0-9_-]{11}$/.test(vid)) {
+                    videoIds.add(vid);
+                  }
+                }
+              }
+            }
+          } catch (parseErr) {
+            continue;
           }
-        }
-
-        // Fallback: Try to fullscreen the container
-        if (container.requestFullscreen) {
-          await container.requestFullscreen();
-        } else if (container.webkitRequestFullscreen) {
-          await container.webkitRequestFullscreen();
-        } else if (container.mozRequestFullScreen) {
-          await container.mozRequestFullScreen();
-        } else if (container.msRequestFullscreen) {
-          await container.msRequestFullscreen();
-        } else {
-          // CSS fallback for browsers that don't support fullscreen API
-          container.style.position = 'fixed';
-          container.style.top = '0';
-          container.style.left = '0';
-          container.style.right = '0';
-          container.style.bottom = '0';
-          container.style.width = '100vw';
-          container.style.height = '100vh';
-          container.style.zIndex = '9999';
-          container.style.paddingBottom = '0';
-          container.style.minHeight = '100vh';
-          container.style.maxHeight = '100vh';
-          container.style.borderRadius = '0';
-          container.style.margin = '0';
-          setIsFullscreen(true);
-        }
-      } catch (err) {
-        console.error('Fullscreen error:', err);
-        // CSS fallback
-        if (container) {
-          container.style.position = 'fixed';
-          container.style.top = '0';
-          container.style.left = '0';
-          container.style.right = '0';
-          container.style.bottom = '0';
-          container.style.width = '100vw';
-          container.style.height = '100vh';
-          container.style.zIndex = '9999';
-          container.style.paddingBottom = '0';
-          container.style.minHeight = '100vh';
-          container.style.maxHeight = '100vh';
-          container.style.borderRadius = '0';
-          container.style.margin = '0';
-          setIsFullscreen(true);
         }
       }
-    } else {
-      // Exit fullscreen
+    } catch (e) {
+      // Continue to other methods
+    }
+    
+    // Method 2: Extract all video IDs from "videoId":"VIDEO_ID" pattern
+    const videoIdPattern = /"videoId":\s*"([a-zA-Z0-9_-]{11})"/g;
+    let match;
+    while ((match = videoIdPattern.exec(htmlContent)) !== null) {
+      if (match[1] && match[1].length === 11 && /^[a-zA-Z0-9_-]{11}$/.test(match[1])) {
+        videoIds.add(match[1]);
+      }
+    }
+    
+    // Method 3: Extract from /watch?v=VIDEO_ID pattern
+    const watchPattern = /\/watch\?v=([a-zA-Z0-9_-]{11})/g;
+    while ((match = watchPattern.exec(htmlContent)) !== null) {
+      if (match[1] && match[1].length === 11 && /^[a-zA-Z0-9_-]{11}$/.test(match[1])) {
+        videoIds.add(match[1]);
+      }
+    }
+    
+    return Array.from(videoIds);
+  };
+
+  const validateVideoId = async (videoId) => {
+    // Quick validation - check if video ID format is valid
+    if (!videoId || videoId.length !== 11 || !/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+      return false;
+    }
+    
+    // Try to check if video is available by checking oEmbed
+    try {
+      const oEmbedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
+      const response = await axios.get(oEmbedUrl, { timeout: 5000 });
+      return response.data && response.data.html; // If oEmbed returns data, video exists
+    } catch (err) {
+      // If oEmbed fails, video might still be available (some videos don't support oEmbed)
+      // Return true to try it anyway
+      return true;
+    }
+  };
+
+  const checkVideoAvailability = async (videoId) => {
+    try {
+      // Check if video is available using YouTube's oEmbed API
+      const oEmbedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
+      const response = await axios.get(oEmbedUrl, { timeout: 5000 });
+      return response.data && response.data.html;
+    } catch (err) {
+      // If oEmbed fails, try checking the video page directly
       try {
-        if (document.exitFullscreen) {
-          await document.exitFullscreen();
-        } else if (document.webkitExitFullscreen) {
-          await document.webkitExitFullscreen();
-        } else if (document.mozCancelFullScreen) {
-          await document.mozCancelFullScreen();
-        } else if (document.msExitFullscreen) {
-          await document.msExitFullscreen();
-        } else {
-          // CSS fallback: Reset styles
-          if (container) {
-            container.style.position = '';
-            container.style.top = '';
-            container.style.left = '';
-            container.style.right = '';
-            container.style.bottom = '';
-            container.style.width = '';
-            container.style.height = '';
-            container.style.zIndex = '';
-            container.style.paddingBottom = '';
-            container.style.minHeight = '';
-            container.style.maxHeight = '';
-            container.style.borderRadius = '';
-            container.style.margin = '';
-            setIsFullscreen(false);
-          }
-        }
-      } catch (err) {
-        console.error('Exit fullscreen error:', err);
-        // CSS fallback: Reset styles
-        if (container) {
-          container.style.position = '';
-          container.style.top = '';
-          container.style.left = '';
-          container.style.right = '';
-          container.style.bottom = '';
-          container.style.width = '';
-          container.style.height = '';
-          container.style.zIndex = '';
-          container.style.paddingBottom = '';
-          container.style.minHeight = '';
-          container.style.maxHeight = '';
-          container.style.borderRadius = '';
-          container.style.margin = '';
-          setIsFullscreen(false);
-        }
+        const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(videoUrl)}`;
+        const response = await axios.get(proxyUrl, { timeout: 5000 });
+        const html = response.data?.contents || '';
+        // Check if video is available (not showing "unavailable" message)
+        return !html.includes('video is unavailable') && !html.includes('Video unavailable');
+      } catch (e) {
+        return false;
       }
     }
   };
 
-  useEffect(() => {
-    if (isOpen && movieTitle) {
-      searchYouTubeTrailer();
-    } else {
-      // Reset when modal closes
-      setVideoId(null);
-      setIsLoading(true);
-      setError(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, movieTitle, releaseYear]);
-
-  // Debug: Log when videoId changes
-  useEffect(() => {
-    if (videoId) {
-      console.log('Video ID set:', videoId);
-    }
-  }, [videoId]);
-
-  const searchYouTubeTrailer = async () => {
+  const fetchTrailer = async () => {
     setIsLoading(true);
     setError(null);
     
     try {
-      // Construct search query
-      const searchQuery = encodeURIComponent(`${movieTitle} ${releaseYear || ''} official trailer`);
-      
-      // Try YouTube Data API v3 first if API key is available
-      const API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
-      
-      if (API_KEY) {
-        try {
-          // Use YouTube Data API with timeout
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-          
-          const response = await fetch(
-            `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${searchQuery}&type=video&videoCategoryId=24&maxResults=1&key=${API_KEY}`,
-            { signal: controller.signal }
-          );
-          
-          clearTimeout(timeoutId);
-          
-          if (response.ok) {
-            const data = await response.json();
-            
-            if (data.items && data.items.length > 0) {
-              const foundVideoId = data.items[0].id.videoId;
-              console.log('Found video ID via API:', foundVideoId);
-              setVideoId(foundVideoId);
-              setIsLoading(false);
-              return;
-            }
-          } else {
-            console.warn('YouTube API response not OK:', response.status);
-          }
-          
-          // Fallback: try without category filter
-          const fallbackController = new AbortController();
-          const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 10000);
-          
-          const fallbackResponse = await fetch(
-            `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${searchQuery}&type=video&maxResults=1&key=${API_KEY}`,
-            { signal: fallbackController.signal }
-          );
-          
-          clearTimeout(fallbackTimeoutId);
-          
-          if (fallbackResponse.ok) {
-            const fallbackData = await fallbackResponse.json();
-            
-            if (fallbackData.items && fallbackData.items.length > 0) {
-              const foundVideoId = fallbackData.items[0].id.videoId;
-              console.log('Found video ID via API (fallback):', foundVideoId);
-              setVideoId(foundVideoId);
-              setIsLoading(false);
-              return;
-            }
-          }
-        } catch (apiError) {
-          if (apiError.name !== 'AbortError') {
-          console.error('YouTube API error:', apiError);
-          }
-        }
-      } else {
-        console.log('No YouTube API key found, using fallback methods');
-      }
-      
-      // Fallback: Use multiple CORS proxies to search YouTube (works without API key)
+      // Build search queries - prioritize official trailers
+      const searchQueries = [
+        `${movieTitle} ${releaseYear || ''} official trailer`,
+        `"${movieTitle}" ${releaseYear || ''} official trailer`,
+        `${movieTitle} ${releaseYear || ''} trailer`,
+        `"${movieTitle}" ${releaseYear || ''} trailer`,
+        `${movieTitle} official trailer`,
+        `"${movieTitle}" official trailer`,
+        `${movieTitle} ${releaseYear || ''} teaser`,
+        `${movieTitle} trailer ${releaseYear || ''}`,
+        `${movieTitle} trailer`
+      ];
+
+      let allVideoIds = [];
       const proxies = [
         'https://api.allorigins.win/get?url=',
         'https://corsproxy.io/?',
         'https://api.codetabs.com/v1/proxy?quest='
       ];
-      
-      const youtubeSearchUrl = `https://www.youtube.com/results?search_query=${searchQuery}`;
-      
-      for (const proxyBase of proxies) {
-        try {
-          const proxyUrl = proxyBase === 'https://api.codetabs.com/v1/proxy?quest=' 
-            ? `${proxyBase}${encodeURIComponent(youtubeSearchUrl)}`
-            : `${proxyBase}${encodeURIComponent(youtubeSearchUrl)}`;
+
+      // Collect video IDs from all search queries
+      for (const searchQuery of searchQueries) {
+        if (allVideoIds.length >= 15) break; // Get more videos to try
+        
+        const encodedQuery = encodeURIComponent(searchQuery);
+        const searchUrl = `https://www.youtube.com/results?search_query=${encodedQuery}&sp=EgIQAQ%253D%253D`;
+        
+        for (const proxyBase of proxies) {
+          if (allVideoIds.length >= 15) break;
           
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout per proxy
-          
-          const response = await fetch(proxyUrl, {
-            method: 'GET',
-            headers: {
-              'Accept': 'text/html'
-            },
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
-          
-          if (response.ok) {
-            let html = '';
-            
+          try {
+            let proxyUrl;
             if (proxyBase.includes('allorigins')) {
-              const data = await response.json();
-              html = data.contents || '';
+              proxyUrl = `${proxyBase}${encodeURIComponent(searchUrl)}`;
+            } else if (proxyBase.includes('codetabs')) {
+              proxyUrl = `${proxyBase}${searchUrl}`;
             } else {
-              html = await response.text();
+              proxyUrl = `${proxyBase}${encodeURIComponent(searchUrl)}`;
             }
             
-            if (html && html.length > 1000) { // Ensure we got meaningful content
-              // Try multiple extraction methods
-              const extractionMethods = [
-                // Method 1: Extract from ytInitialData JSON
-                () => {
-                  const ytInitialDataMatch = html.match(/var ytInitialData = ({.+?});/s);
-                  if (ytInitialDataMatch) {
-                    try {
-                      const ytData = JSON.parse(ytInitialDataMatch[1]);
-                      const contents = ytData?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents;
-                      if (contents && contents.length > 0) {
-                        for (const item of contents) {
-                          const videoId = item?.videoRenderer?.videoId || 
-                                         item?.videoRenderer?.navigationEndpoint?.watchEndpoint?.videoId;
-                          if (videoId && videoId.length === 11) {
-                            return videoId;
-                          }
-                        }
-                      }
-                    } catch (e) {
-                      console.error('JSON parse error:', e);
-                    }
-                  }
-                  return null;
-                },
-                // Method 2: Extract from videoRenderer patterns
-                () => {
-                  const videoRendererMatch = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-                  if (videoRendererMatch) {
-                    return videoRendererMatch[1];
-                  }
-                  return null;
-                },
-                // Method 3: Extract from watch URLs
-                () => {
-                  const watchMatches = html.match(/\/watch\?v=([a-zA-Z0-9_-]{11})/g);
-                  if (watchMatches && watchMatches.length > 0) {
-                    const videoId = watchMatches[0].match(/\/watch\?v=([a-zA-Z0-9_-]{11})/)[1];
-                    if (videoId && videoId.length === 11) {
-                      return videoId;
-                    }
-                  }
-                  return null;
-                },
-                // Method 4: Extract from embed URLs
-                () => {
-                  const embedMatches = html.match(/\/embed\/([a-zA-Z0-9_-]{11})/g);
-                  if (embedMatches && embedMatches.length > 0) {
-                    const videoId = embedMatches[0].match(/\/embed\/([a-zA-Z0-9_-]{11})/)[1];
-                    if (videoId && videoId.length === 11) {
-                      return videoId;
-                    }
-                  }
-                  return null;
-                },
-                // Method 5: Generic videoId pattern
-                () => {
-                  const patterns = [
-                    /"videoId":"([a-zA-Z0-9_-]{11})"/,
-                    /videoId["\s]*:["\s]*"([a-zA-Z0-9_-]{11})"/,
-                    /"v":"([a-zA-Z0-9_-]{11})"/
-                  ];
-                  
-                  for (const pattern of patterns) {
-                    const match = html.match(pattern);
-                    if (match && match[1] && match[1].length === 11) {
-                      return match[1];
-                    }
-                  }
-                  return null;
-                }
-              ];
-              
-              for (const method of extractionMethods) {
-                const videoId = method();
-                if (videoId && videoId.length === 11) {
-                  console.log('Found video ID via proxy:', videoId);
-                  setVideoId(videoId);
-                  setIsLoading(false);
-                  return;
-                }
+            const response = await axios.get(proxyUrl, { 
+              timeout: 15000,
+              headers: {
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+              }
+            });
+            
+            let htmlContent = '';
+            if (response.data) {
+              if (typeof response.data === 'string') {
+                htmlContent = response.data;
+              } else if (response.data.contents) {
+                htmlContent = response.data.contents;
+              } else if (response.data.data) {
+                htmlContent = response.data.data;
+              } else {
+                htmlContent = JSON.stringify(response.data);
               }
             }
+            
+            if (htmlContent) {
+              const videoIds = extractVideoIdsFromHtml(htmlContent);
+              videoIds.forEach(id => {
+                if (!allVideoIds.includes(id)) {
+                  allVideoIds.push(id);
+                }
+              });
+              
+              if (allVideoIds.length >= 10) break;
+            }
+          } catch (proxyErr) {
+            continue;
           }
-        } catch (proxyError) {
-          if (proxyError.name !== 'AbortError') {
-          console.error(`Proxy ${proxyBase} error:`, proxyError);
-          }
-          continue; // Try next proxy
         }
+        
+        if (allVideoIds.length >= 10) break;
       }
-      
-      // If all methods fail, show error with link to YouTube search
-      console.error('All trailer search methods failed');
-      setError('Unable to automatically load trailer.');
+
+      // Validate and find the first available video
+      if (allVideoIds.length > 0) {
+        setVideoIds(allVideoIds);
+        setCurrentVideoIndex(0);
+        
+        // Try to validate the first video quickly
+        const firstVideoId = allVideoIds[0];
+        const isValid = await checkVideoAvailability(firstVideoId);
+        
+        if (isValid) {
+          setTrailerVideoId(firstVideoId);
+          setVideoError(false);
+        } else {
+          // If first video is invalid, try the next ones
+          let foundValid = false;
+          for (let i = 1; i < Math.min(allVideoIds.length, 5); i++) {
+            const vid = allVideoIds[i];
+            const valid = await checkVideoAvailability(vid);
+            if (valid) {
+              setTrailerVideoId(vid);
+              setCurrentVideoIndex(i);
+              setVideoError(false);
+              foundValid = true;
+              break;
+            }
+          }
+          
+          // If none are validated but we have IDs, use the first one anyway
+          // (validation might fail due to CORS, but video might still work)
+          if (!foundValid) {
+            setTrailerVideoId(firstVideoId);
+            setVideoError(false);
+          }
+        }
+      } else {
+        // Fallback: Use YouTube's search embed
+        const searchQuery = `${movieTitle} ${releaseYear || ''} official trailer`;
+        const encodedQuery = encodeURIComponent(searchQuery);
+        setTrailerVideoId(`SEARCH:${encodedQuery}`);
+        setVideoIds([]);
+      }
     } catch (err) {
-      console.error('Error searching for trailer:', err);
-      setError('Unable to load trailer. Please try again later.');
+      console.error('Error fetching trailer:', err);
+      // Fallback: Use YouTube's search embed
+      const searchQuery = `${movieTitle} ${releaseYear || ''} official trailer`;
+      const encodedQuery = encodeURIComponent(searchQuery);
+      setTrailerVideoId(`SEARCH:${encodedQuery}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleClose = async () => {
-    // Exit fullscreen if active
-    if (isFullscreen) {
-      try {
-        if (document.exitFullscreen) {
-          await document.exitFullscreen();
-        } else if (document.webkitExitFullscreen) {
-          await document.webkitExitFullscreen();
-        } else if (document.mozCancelFullScreen) {
-          await document.mozCancelFullScreen();
-        } else if (document.msExitFullscreen) {
-          await document.msExitFullscreen();
-        }
-        // Reset CSS fallback styles
-        if (containerRef.current) {
-          containerRef.current.style.position = '';
-          containerRef.current.style.top = '';
-          containerRef.current.style.left = '';
-          containerRef.current.style.right = '';
-          containerRef.current.style.bottom = '';
-          containerRef.current.style.width = '';
-          containerRef.current.style.height = '';
-          containerRef.current.style.zIndex = '';
-          containerRef.current.style.paddingBottom = '';
-          containerRef.current.style.minHeight = '';
-          containerRef.current.style.maxHeight = '';
-          containerRef.current.style.borderRadius = '';
-          containerRef.current.style.margin = '';
-        }
-        setIsFullscreen(false);
-      } catch (err) {
-        console.error('Error exiting fullscreen:', err);
-        // Reset CSS fallback styles anyway
-        if (containerRef.current) {
-          containerRef.current.style.position = '';
-          containerRef.current.style.top = '';
-          containerRef.current.style.left = '';
-          containerRef.current.style.right = '';
-          containerRef.current.style.bottom = '';
-          containerRef.current.style.width = '';
-          containerRef.current.style.height = '';
-          containerRef.current.style.zIndex = '';
-          containerRef.current.style.paddingBottom = '';
-          containerRef.current.style.minHeight = '';
-          containerRef.current.style.maxHeight = '';
-          containerRef.current.style.borderRadius = '';
-          containerRef.current.style.margin = '';
-        }
-        setIsFullscreen(false);
-      }
+  const getYouTubeEmbedUrl = () => {
+    if (!trailerVideoId) return null;
+    
+    // Check if it's a search embed fallback
+    if (trailerVideoId.startsWith('SEARCH:')) {
+      const searchQuery = trailerVideoId.replace('SEARCH:', '');
+      // Simplified embed for mobile compatibility
+      return `https://www.youtube.com/embed?listType=search&list=${searchQuery}&rel=0&modestbranding=1&playsinline=1&fs=1&controls=1`;
     }
-    setVideoId(null);
-    setIsLoading(true);
-    setError(null);
-    setIsFullscreen(false);
-    onClose();
+    
+    // Use regular YouTube domain - ensure it works on mobile
+    // Mobile requires: playsinline=1, no autoplay (user must tap), proper origin
+    const origin = typeof window !== 'undefined' ? encodeURIComponent(window.location.origin) : '';
+    
+    // Clean embed URL optimized for mobile - user taps play button
+    // Remove autoplay completely for mobile compatibility
+    return `https://www.youtube.com/embed/${trailerVideoId}?rel=0&modestbranding=1&playsinline=1&fs=1&controls=1&iv_load_policy=3&cc_load_policy=0&enablejsapi=1${origin ? `&origin=${origin}` : ''}`;
   };
 
   return (
     <Modal
-          isOpen={isOpen}
-          onClose={handleClose}
-          size="5xl"
-          scrollBehavior="inside"
-          hideCloseButton={false}
-          placement="center"
-          classNames={{
-            base: `bg-black/95 backdrop-blur-xl border border-gray-800 m-0 sm:m-4 max-w-[100vw] sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[85vw] xl:max-w-[80vw] ${isFullscreen && isMobile ? '!fixed !inset-0 !m-0 !max-w-none !w-screen !h-screen !rounded-none !border-0' : ''}`,
-            header: `border-b border-gray-800 px-3 sm:px-6 py-2 sm:py-4 ${isFullscreen && isMobile ? '!hidden' : ''}`,
-            body: `p-0 sm:p-4 pb-2 sm:pb-4 ${isFullscreen && isMobile ? '!p-0' : ''}`,
-            wrapper: `p-0 sm:p-4 ${isFullscreen && isMobile ? '!p-0' : ''}`,
-            backdrop: `bg-black/80 ${isFullscreen && isMobile ? '!bg-black' : ''}`
-          }}
+      isOpen={isOpen}
+      onClose={onClose}
+      size="5xl"
+      scrollBehavior="inside"
+      placement="center"
+      classNames={{
+        base: "bg-black/95 backdrop-blur-xl border border-gray-800 max-h-[95vh] md:max-h-[85vh] w-[95vw] md:w-auto",
+        wrapper: "items-center justify-center p-1 md:p-4",
+        header: "border-b border-gray-800 px-3 md:px-4 py-2 md:py-3",
+        body: "p-0 overflow-hidden",
+      }}
       motionProps={{
         variants: {
           enter: {
@@ -519,173 +314,99 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
               ease: "easeIn",
             },
           },
-        }
+        },
       }}
     >
-      <ModalContent>
+      <ModalContent className="max-w-full w-full md:max-w-5xl">
         {(onClose) => (
           <>
-            <ModalHeader className={`flex items-center justify-between ${isFullscreen && isMobile ? 'hidden' : ''}`}>
-              <h2 className="text-base sm:text-xl font-bold text-white truncate pr-2">
+            <ModalHeader className="flex items-center justify-between sticky top-0 z-10 bg-black/95 backdrop-blur-sm">
+              <h2 className="text-lg md:text-xl font-bold text-white truncate pr-2">
                 {movieTitle} - Trailer
               </h2>
-              <div className="flex items-center gap-2">
-                {/* Fullscreen/Exit Fullscreen Button - Show when trailer is loaded, optimized for mobile */}
-                {videoId && !isLoading && (
-                  <button
-                    onClick={toggleFullscreen}
-                    className="text-white hover:text-red-500 active:text-red-400 transition-colors p-2 sm:p-1.5 rounded-full hover:bg-white/10 active:bg-white/20 flex-shrink-0 z-50 touch-manipulation"
-                    title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-                    style={{ WebkitTapHighlightColor: 'transparent' }}
-                  >
-                    {isFullscreen ? (
-                      <BiExitFullscreen className="text-xl sm:text-2xl" />
-                    ) : (
-                      <BiFullscreen className="text-xl sm:text-2xl" />
-                    )}
-                  </button>
-                )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    handleClose();
-                  }}
-                  onTouchStart={(e) => {
-                    e.stopPropagation();
-                    handleClose();
-                  }}
-                  className="text-white hover:text-red-500 active:text-red-400 transition-colors p-1 sm:p-2 rounded-full hover:bg-white/10 active:bg-white/20 flex-shrink-0 touch-manipulation z-50"
-                  title="Close"
-                  style={{ WebkitTapHighlightColor: 'transparent' }}
-                >
-                  <AiOutlineClose className="text-xl sm:text-2xl" />
-                </button>
-              </div>
-            </ModalHeader>
-            <ModalBody className={`!pb-2 sm:!pb-4 ${isFullscreen && isMobile ? '!p-0' : ''}`}>
-              {/* Exit Fullscreen Button - Only visible in fullscreen on mobile */}
-              {isFullscreen && isMobile && (
-                <>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      handleClose();
-                    }}
-                    onTouchStart={(e) => {
-                      e.stopPropagation();
-                      handleClose();
-                    }}
-                    className="absolute top-4 left-4 z-[10000] text-white hover:text-red-500 active:text-red-400 transition-colors p-3 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:bg-black/80 flex-shrink-0 touch-manipulation"
-                    title="Close"
-                    style={{ WebkitTapHighlightColor: 'transparent' }}
-                  >
-                    <AiOutlineClose className="text-2xl" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      toggleFullscreen();
-                    }}
-                    onTouchStart={(e) => {
-                      e.stopPropagation();
-                      toggleFullscreen();
-                    }}
-                    className="absolute top-4 right-4 z-[10000] text-white hover:text-red-500 active:text-red-400 transition-colors p-3 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:bg-black/80 flex-shrink-0 touch-manipulation"
-                    title="Exit Fullscreen"
-                    style={{ WebkitTapHighlightColor: 'transparent' }}
-                  >
-                    <BiExitFullscreen className="text-2xl" />
-                  </button>
-                </>
-              )}
-              <div 
-                ref={containerRef}
-                className={`relative w-full bg-black ${isFullscreen && isMobile ? 'fixed inset-0 w-screen h-screen z-[9999] rounded-none' : 'rounded-lg overflow-hidden'}`}
-                style={isFullscreen && isMobile ? {
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  width: '100vw',
-                  height: '100vh',
-                  zIndex: 9999,
-                  paddingBottom: 0,
-                  minHeight: '100vh',
-                  maxHeight: '100vh',
-                  borderRadius: 0,
-                  margin: 0
-                } : {
-                  paddingBottom: isMobile ? '56.25%' : '70%',
-                  minHeight: isMobile ? '200px' : '400px',
-                  height: '0'
-                }}
+              <button
+                onClick={onClose}
+                className="text-white hover:text-red-500 transition-colors p-1 rounded-full hover:bg-white/10 flex-shrink-0"
+                aria-label="Close"
               >
-                {isLoading && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50">
-                    <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-3"></div>
-                    <span className="text-white">Loading trailer...</span>
-                  </div>
-                )}
-                
-                {error && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50">
-                    <div className="text-center text-white p-6">
-                      <p className="text-lg mb-4">{error}</p>
-                      <div className="flex flex-col sm:flex-row gap-3 items-center justify-center">
-                        <button
-                          onClick={searchYouTubeTrailer}
-                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium"
-                        >
-                          Retry Search
-                        </button>
-                        <a
-                          href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`${movieTitle} ${releaseYear || ''} trailer`)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium"
-                        >
-                          Open YouTube Search
-                        </a>
-                      </div>
-                      {!import.meta.env.VITE_YOUTUBE_API_KEY && (
-                        <p className="text-sm text-gray-400 mt-4">
-                          Tip: Add VITE_YOUTUBE_API_KEY to your .env file for more reliable results
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {videoId && !isLoading && (
+                <AiOutlineClose className="text-xl md:text-2xl" />
+              </button>
+            </ModalHeader>
+            <ModalBody className="overflow-hidden">
+              {isLoading ? (
+                <div className="flex items-center justify-center" style={{ minHeight: '50vh', maxHeight: '70vh' }}>
+                  <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : error ? (
+                <div className="flex flex-col items-center justify-center text-white p-6" style={{ minHeight: '50vh', maxHeight: '70vh' }}>
+                  <p className="text-base md:text-lg mb-4 text-center">{error}</p>
+                  <a
+                    href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`${movieTitle} ${releaseYear || ''} trailer`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-red-500 hover:text-red-400 underline text-sm md:text-base"
+                  >
+                    Search on YouTube
+                  </a>
+                </div>
+              ) : (
+                <div 
+                  className="relative w-full bg-black rounded-lg overflow-hidden"
+                  style={{ 
+                    paddingBottom: '56.25%',
+                    minHeight: '200px',
+                    maxHeight: 'calc(90vh - 100px)',
+                    width: '100%',
+                    position: 'relative'
+                  }}
+                >
                   <iframe
-                    key={videoId}
-                    ref={iframeRef}
-                    className={`absolute top-0 left-0 ${isFullscreen && isMobile ? 'w-screen h-screen' : 'w-full h-full'}`}
-                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&rel=0&playsinline=1&modestbranding=1&fs=1&enablejsapi=1${typeof window !== 'undefined' && window.location ? `&origin=${encodeURIComponent(window.location.origin)}` : ''}`}
+                    key={trailerVideoId} // Force re-render when video ID changes
+                    className="absolute top-0 left-0 w-full h-full rounded-lg"
+                    src={getYouTubeEmbedUrl()}
                     title={`${movieTitle} Trailer`}
                     frameBorder="0"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-                    allowFullScreen
-                    loading="eager"
-                    onLoad={() => {
-                      console.log('Video iframe loaded successfully for video:', videoId);
-                    }}
-                    style={isFullscreen && isMobile ? {
-                      width: '100vw',
-                      height: '100vh',
+                    allowFullScreen={true}
+                    style={{ 
+                      border: 'none', 
+                      width: '100%', 
+                      height: '100%',
                       position: 'absolute',
                       top: 0,
                       left: 0,
-                      border: 'none',
-                      borderRadius: 0
-                    } : {}}
-                  />
-                )}
-              </div>
+                      display: 'block',
+                      maxWidth: '100%',
+                      maxHeight: '100%'
+                    }}
+                    loading="eager"
+                    playsInline={true}
+                    onLoad={() => {
+                      setVideoError(false);
+                    }}
+                    onError={() => {
+                      // If video fails to load, try next video
+                      if (videoIds.length > currentVideoIndex + 1) {
+                        const nextIndex = currentVideoIndex + 1;
+                        setCurrentVideoIndex(nextIndex);
+                        setTrailerVideoId(videoIds[nextIndex]);
+                      } else {
+                        setError('This trailer is unavailable. Please search on YouTube.');
+                      }
+                    }}
+                  ></iframe>
+                  
+                  {/* Fallback message if video doesn't load */}
+                  {videoError && videoIds.length > currentVideoIndex + 1 && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
+                      <div className="text-center text-white">
+                        <p className="mb-2">Trying next trailer...</p>
+                        <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </ModalBody>
           </>
         )}
@@ -695,3 +416,4 @@ const TrailerModal = ({ isOpen, onClose, movieTitle, releaseYear }) => {
 };
 
 export default TrailerModal;
+

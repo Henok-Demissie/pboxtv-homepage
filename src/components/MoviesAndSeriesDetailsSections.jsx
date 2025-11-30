@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
+import "react-lazy-load-image-component/src/effects/black-and-white.css";
 import { motion, AnimatePresence } from "framer-motion";
+import { LazyLoadImage } from "react-lazy-load-image-component";
 import Swal from 'sweetalert2';
-import Plyr from 'plyr-react';
-import 'plyr/dist/plyr.css';
 
-import { BiListUl, BiPlay, BiTime, BiDownload, BiFilm, BiPause, BiVolumeFull, BiVolumeMute, BiFullscreen, BiExitFullscreen, BiSkipNext, BiSkipPrevious } from "react-icons/bi";
+import { BiListUl, BiPlay, BiTime, BiDownload, BiPlayCircle } from "react-icons/bi";
 import { IoIosArrowDown, IoIosCheckmark } from "react-icons/io";
 import { FiCalendar } from "react-icons/fi";
 import { BsListStars } from "react-icons/bs";
 import { PiStarFill } from "react-icons/pi";
 import { LuLanguages } from "react-icons/lu";
-import { AiFillHeart, AiOutlineHeart, AiOutlineClose } from "react-icons/ai";
+import { AiFillHeart, AiOutlineHeart } from "react-icons/ai";
 import { getFromStorage, saveToStorage } from "../utils/helpers";
 import TelegramButton from "./TelegramButtons";
 import DownloadButton from "./Buttons";
@@ -23,241 +23,6 @@ export default function MoviesAndSeriesDetailsSections(props) {
   const [isLoadingPlayback, setIsLoadingPlayback] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isTrailerModalOpen, setIsTrailerModalOpen] = useState(false);
-  const [isPlayingMovie, setIsPlayingMovie] = useState(false);
-  const [selectedSource, setSelectedSource] = useState(null);
-  const [videoUrl, setVideoUrl] = useState(null);
-  const [videoError, setVideoError] = useState(null);
-  const errorTimeoutRef = useRef(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [volume, setVolume] = useState(1);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [showControls, setShowControls] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
-  const videoRef = useRef(null);
-  const containerRef = useRef(null);
-  const controlsTimeoutRef = useRef(null);
-
-  // Check if mobile
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  // Preload poster image immediately for faster loading
-  useEffect(() => {
-    if (props.movieData?.backdrop) {
-      // Create preload link for faster image loading
-      const link = document.createElement('link');
-      link.rel = 'preload';
-      link.as = 'image';
-      link.href = props.movieData.backdrop;
-      link.setAttribute('fetchpriority', 'high');
-      
-      // Remove existing preload link if any
-      const existingLinks = document.querySelectorAll(`link[href="${props.movieData.backdrop}"]`);
-      existingLinks.forEach(l => l.remove());
-      
-      document.head.appendChild(link);
-      
-      // Also preload using Image object
-      const img = new Image();
-      img.src = props.movieData.backdrop;
-      img.loading = 'eager';
-      img.fetchPriority = 'high';
-      
-      return () => {
-        // Cleanup on unmount
-        link.remove();
-      };
-    }
-  }, [props.movieData?.backdrop]);
-
-  // Auto-play video on desktop when URL is set
-  useEffect(() => {
-    if (!isMobile && videoUrl && isPlayingMovie && videoRef.current) {
-      const video = videoRef.current;
-      
-      // Ensure video has src set
-      if (video.src !== videoUrl) {
-        video.src = videoUrl;
-        video.load();
-      }
-      
-      // Try to play when video is ready
-      const attemptPlay = () => {
-        if (video && video.src && !video.paused) return; // Already playing
-        
-        if (video.readyState >= 2) { // HAVE_CURRENT_DATA or higher
-          video.play()
-            .then(() => {
-              setIsPlaying(true);
-              setIsLoadingPlayback(false);
-              setVideoError(null);
-              console.log('✅ Desktop video is playing');
-            })
-            .catch((err) => {
-              console.log('Desktop play attempt failed, will retry:', err);
-            });
-        }
-      };
-      
-      // Try immediately and on video events
-      attemptPlay();
-      video.addEventListener('canplay', attemptPlay, { once: true });
-      video.addEventListener('loadeddata', attemptPlay, { once: true });
-      video.addEventListener('canplaythrough', attemptPlay, { once: true });
-      
-      // Also try with delays
-      setTimeout(attemptPlay, 100);
-      setTimeout(attemptPlay, 500);
-      setTimeout(attemptPlay, 1000);
-    }
-  }, [videoUrl, isPlayingMovie, isMobile]);
-
-  // Auto-play video on mobile when URL is set and video element is ready
-  useEffect(() => {
-    if (isMobile && videoUrl && isPlayingMovie) {
-      const setupAndPlayVideo = () => {
-        const video = videoRef.current;
-        
-        if (!video) {
-          // Video element not rendered yet, check again VERY quickly
-          setTimeout(setupAndPlayVideo, 10);
-          setTimeout(setupAndPlayVideo, 50);
-          setTimeout(setupAndPlayVideo, 100);
-          return;
-        }
-        
-        // CRITICAL: Ensure video has src set - FORCE IT
-        if (video.src !== videoUrl) {
-          video.src = videoUrl;
-        }
-        
-        // Set ALL video properties IMMEDIATELY
-        video.preload = 'auto';
-        video.playbackRate = 1;
-        // Start muted for autoplay compatibility, then unmute after play
-        video.muted = true;
-        video.volume = 1;
-        video.playsInline = true;
-        video.setAttribute('webkit-playsinline', 'true');
-        video.setAttribute('x5-playsinline', 'true');
-        video.setAttribute('x5-video-player-type', 'h5');
-        video.setAttribute('x5-video-player-fullscreen', 'true');
-        video.removeAttribute('crossOrigin');
-        
-        // FORCE video visibility - CRITICAL FOR MOBILE - Fill container perfectly
-        video.style.setProperty('display', 'block', 'important');
-        video.style.setProperty('visibility', 'visible', 'important');
-        video.style.setProperty('opacity', '1', 'important');
-        video.style.setProperty('z-index', '20', 'important');
-        video.style.setProperty('position', 'absolute', 'important');
-        video.style.setProperty('pointer-events', 'auto', 'important');
-        video.style.setProperty('width', '100%', 'important');
-        video.style.setProperty('height', '100%', 'important');
-        video.style.setProperty('min-width', '100%', 'important');
-        video.style.setProperty('min-height', '100%', 'important');
-        video.style.setProperty('max-width', '100%', 'important');
-        video.style.setProperty('max-height', '100%', 'important');
-        video.style.setProperty('top', '0', 'important');
-        video.style.setProperty('left', '0', 'important');
-        video.style.setProperty('right', '0', 'important');
-        video.style.setProperty('bottom', '0', 'important');
-        video.style.setProperty('margin', '0', 'important');
-        video.style.setProperty('padding', '0', 'important');
-        video.style.setProperty('background-color', '#000', 'important');
-        video.style.setProperty('object-fit', 'contain', 'important'); // Preserve aspect ratio without distortion
-        video.style.setProperty('border-radius', '1rem', 'important');
-        
-        // Also ensure container is visible and fills parent perfectly
-        if (containerRef.current) {
-          containerRef.current.style.setProperty('display', 'flex', 'important');
-          containerRef.current.style.setProperty('visibility', 'visible', 'important');
-          containerRef.current.style.setProperty('opacity', '1', 'important');
-          containerRef.current.style.setProperty('z-index', '20', 'important');
-          containerRef.current.style.setProperty('position', 'absolute', 'important');
-          containerRef.current.style.setProperty('top', '0', 'important');
-          containerRef.current.style.setProperty('left', '0', 'important');
-          containerRef.current.style.setProperty('right', '0', 'important');
-          containerRef.current.style.setProperty('bottom', '0', 'important');
-          containerRef.current.style.setProperty('width', '100%', 'important');
-          containerRef.current.style.setProperty('height', '100%', 'important');
-          containerRef.current.style.setProperty('min-height', '100%', 'important');
-          containerRef.current.style.setProperty('background-color', '#000', 'important');
-          containerRef.current.style.setProperty('border-radius', '1rem', 'important');
-        }
-        
-        // Load video FIRST
-        video.load();
-        
-        // Try to play IMMEDIATELY - MUST PLAY WITHIN USER GESTURE
-        const attemptPlay = () => {
-          if (!video || !video.src) return;
-          
-          // FORCE visibility again before each play attempt
-          video.style.setProperty('display', 'block', 'important');
-          video.style.setProperty('visibility', 'visible', 'important');
-          video.style.setProperty('opacity', '1', 'important');
-          
-          // Unmute before playing
-          video.muted = false;
-          video.volume = 1;
-          
-          try {
-            const playPromise = video.play();
-            if (playPromise !== undefined) {
-              playPromise
-                .then(() => {
-                  // Ensure unmuted
-                  video.muted = false;
-                  video.volume = 1;
-                  setIsPlaying(true);
-                  setIsLoadingPlayback(false);
-                  setVideoError(null);
-                  console.log('✅✅✅✅ MOBILE VIDEO IS PLAYING!!!');
-                  
-                  // FORCE visibility after playing
-                  video.style.setProperty('display', 'block', 'important');
-                  video.style.setProperty('visibility', 'visible', 'important');
-                  video.style.setProperty('opacity', '1', 'important');
-                })
-                .catch((err) => {
-                  console.log('Play attempt failed, retrying...', err);
-                });
-            }
-          } catch (e) {
-            console.log('Play error, retrying...', e);
-          }
-        };
-        
-        // Try playing IMMEDIATELY - multiple times with micro-delays
-        setTimeout(attemptPlay, 0);
-        setTimeout(attemptPlay, 1);
-        setTimeout(attemptPlay, 5);
-        setTimeout(attemptPlay, 10);
-        setTimeout(attemptPlay, 20);
-        setTimeout(attemptPlay, 50);
-        setTimeout(attemptPlay, 100);
-        setTimeout(attemptPlay, 200);
-        setTimeout(attemptPlay, 500);
-        setTimeout(attemptPlay, 1000);
-        setTimeout(attemptPlay, 2000);
-        setTimeout(attemptPlay, 3000);
-      };
-      
-      // Start immediately
-      setupAndPlayVideo();
-    }
-  }, [videoUrl, isPlayingMovie, isMobile]);
 
   // Check if movie is in favorites
   useEffect(() => {
@@ -330,500 +95,6 @@ export default function MoviesAndSeriesDetailsSections(props) {
     
     // Dispatch custom event for cross-component updates
     window.dispatchEvent(new CustomEvent('favoritesUpdated'));
-  };
-
-  const handleTrailerClick = () => {
-    setIsTrailerModalOpen(true);
-  };
-
-  const loadVideoUrl = async (source, userGesture = false) => {
-    setIsLoadingPlayback(true);
-    setVideoError(null);
-    setShowControls(true);
-    
-    // Clear any error timeout immediately
-    if (errorTimeoutRef.current) {
-      clearTimeout(errorTimeoutRef.current);
-      errorTimeoutRef.current = null;
-    }
-    
-    // Clear any existing video errors
-    if (videoRef.current && videoRef.current.error) {
-      // Reset video error state
-      const currentSrc = videoRef.current.src;
-      videoRef.current.removeAttribute('crossOrigin');
-      videoRef.current.src = '';
-      videoRef.current.load();
-    }
-    
-    // Clear any previous video state for smoother loading
-    if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.removeAttribute('crossOrigin');
-      videoRef.current.src = '';
-      videoRef.current.load();
-    }
-    
-    // Clear any previous errors
-    setVideoError(null);
-    
-    try {
-      const downloadUrl = generateDownloadUrl(source.id, source.name);
-      // Try URL shortening, but don't wait too long - use direct URL as fallback
-      let shortUrl = downloadUrl;
-      try {
-        if (!isMobile) {
-          shortUrl = await Promise.race([
-            shortenUrl(downloadUrl),
-            new Promise((resolve) => setTimeout(() => resolve(downloadUrl), 2000))
-          ]);
-        }
-      } catch (shortenErr) {
-        console.warn('URL shortening failed, using direct URL:', shortenErr);
-        shortUrl = downloadUrl;
-      }
-      
-      setVideoUrl(shortUrl);
-      setIsPlayingMovie(true);
-      // Show controls when video starts (desktop)
-      if (!isMobile) {
-        setShowControls(true);
-      }
-      
-      // On mobile with user gesture, try to play immediately
-      if (isMobile && userGesture && videoRef.current) {
-        // Set src immediately and synchronously
-        const video = videoRef.current;
-        video.src = shortUrl;
-        video.preload = 'auto';
-        video.playbackRate = 1;
-        video.muted = false;
-        video.removeAttribute('crossOrigin');
-        
-        // Load the video
-        video.load();
-        
-        // Try to play immediately while user gesture is still valid
-        // Use requestAnimationFrame to ensure DOM is updated but still within gesture context
-        requestAnimationFrame(() => {
-          if (video && video.src) {
-            const playPromise = video.play();
-            if (playPromise !== undefined) {
-              playPromise
-                .then(() => {
-                  setIsPlaying(true);
-                  setIsLoadingPlayback(false);
-                  console.log('Video playing successfully on mobile');
-                })
-                .catch((err) => {
-                  console.log('Initial play failed, will retry in handlers:', err);
-                  // Will retry in event handlers (onCanPlay, onLoadedData, etc.)
-                });
-            }
-          }
-        });
-        
-        // Also try after a very short delay (still within gesture context window)
-        setTimeout(() => {
-          if (video && video.src && video.paused && !video.error) {
-            video.play()
-              .then(() => {
-                setIsPlaying(true);
-                setIsLoadingPlayback(false);
-                console.log('Video playing successfully on mobile (delayed attempt)');
-              })
-              .catch(() => {
-                // Will retry in event handlers
-              });
-          }
-        }, 100);
-      } else {
-        // Desktop: Video element is always rendered, so play immediately
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            const video = videoRef.current;
-            if (video && shortUrl) {
-              // Ensure video has src
-              if (video.src !== shortUrl) {
-                video.src = shortUrl;
-              }
-              video.preload = 'auto';
-              video.playbackRate = 1;
-              video.muted = false;
-              video.volume = 1;
-              video.playsInline = true;
-              video.removeAttribute('crossOrigin');
-              
-              // Force visibility
-              video.style.setProperty('display', 'block', 'important');
-              video.style.setProperty('visibility', 'visible', 'important');
-              video.style.setProperty('opacity', '1', 'important');
-              
-              // Load and play
-              video.load();
-              
-              // Try playing immediately
-              const attemptPlay = () => {
-                if (video && video.src) {
-                  video.play()
-                    .then(() => {
-                      setIsPlaying(true);
-                      setIsLoadingPlayback(false);
-                      setVideoError(null);
-                      console.log('✅✅✅ DESKTOP VIDEO IS PLAYING!!!');
-                    })
-                    .catch(() => {
-                      // Retry
-                    });
-                }
-              };
-              
-              attemptPlay();
-              setTimeout(attemptPlay, 100);
-              setTimeout(attemptPlay, 500);
-              setTimeout(attemptPlay, 1000);
-            }
-          });
-        });
-        
-        // Also keep the old logic as fallback
-        setTimeout(() => {
-          if (videoRef.current) {
-            // Set optimal buffering settings
-            videoRef.current.preload = isMobile ? 'metadata' : 'auto';
-            // Ensure smooth playback
-            videoRef.current.playbackRate = 1;
-            // Remove crossOrigin if it causes issues
-            if (videoRef.current.hasAttribute('crossOrigin')) {
-              videoRef.current.removeAttribute('crossOrigin');
-            }
-          }
-        }, 100);
-      }
-      // Keep loading state true, video events will handle it
-    } catch (err) {
-      console.error('Error loading video:', err);
-      setIsLoadingPlayback(false);
-      Swal.fire({
-        title: 'Error',
-        text: 'Unable to load video. Please try again.',
-        icon: 'error',
-        confirmButtonText: 'OK',
-        confirmButtonColor: '#e11d48',
-        background: '#1f2937',
-        color: '#ffffff'
-      });
-    }
-  };
-
-  const stopPlaying = () => {
-    if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.currentTime = 0;
-    }
-    setIsPlayingMovie(false);
-    setVideoUrl(null);
-    setSelectedSource(null);
-    setVideoError(null);
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setDuration(0);
-    setShowControls(true);
-    if (controlsTimeoutRef.current) {
-      clearTimeout(controlsTimeoutRef.current);
-    }
-  };
-
-  const formatTime = (seconds) => {
-    if (isNaN(seconds) || !isFinite(seconds) || seconds < 0) return '0:00';
-    const hours = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    if (hours > 0) {
-      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Fullscreen handlers
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      const isCurrentlyFullscreen = !!(
-        document.fullscreenElement || 
-        document.webkitFullscreenElement || 
-        document.mozFullScreenElement || 
-        document.msFullscreenElement ||
-        (videoRef.current && videoRef.current.webkitDisplayingFullscreen)
-      );
-      setIsFullscreen(isCurrentlyFullscreen);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-    
-    // iOS specific events
-    const video = videoRef.current;
-    if (video) {
-      video.addEventListener('webkitbeginfullscreen', handleFullscreenChange);
-      video.addEventListener('webkitendfullscreen', handleFullscreenChange);
-    }
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-      if (video) {
-        video.removeEventListener('webkitbeginfullscreen', handleFullscreenChange);
-        video.removeEventListener('webkitendfullscreen', handleFullscreenChange);
-      }
-    };
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (!videoRef.current) return;
-
-    // Mobile-specific fullscreen handling
-    if (isMobile) {
-      if (!isFullscreen) {
-        // For iOS Safari - use native fullscreen
-        if (videoRef.current.webkitEnterFullscreen) {
-          videoRef.current.webkitEnterFullscreen();
-          setIsFullscreen(true);
-          return;
-        }
-        // For Android Chrome and other mobile browsers - use container for better control
-        const element = containerRef.current || videoRef.current;
-        if (element) {
-          if (element.requestFullscreen) {
-            element.requestFullscreen().catch(err => {
-              console.error('Fullscreen error:', err);
-              // Fallback: try video element
-              if (videoRef.current?.requestFullscreen) {
-                videoRef.current.requestFullscreen().catch(() => {});
-              }
-            });
-          } else if (element.webkitRequestFullscreen) {
-            element.webkitRequestFullscreen();
-          }
-        }
-      } else {
-        // Exit fullscreen
-        if (document.exitFullscreen) {
-          document.exitFullscreen().catch(() => {});
-        } else if (document.webkitExitFullscreen) {
-          document.webkitExitFullscreen();
-        } else if (document.webkitCancelFullScreen) {
-          document.webkitCancelFullScreen();
-        }
-      }
-      return;
-    }
-
-    // Desktop fullscreen handling - use container for better control
-    const element = containerRef.current || videoRef.current;
-    if (!element) return;
-
-    if (!isFullscreen) {
-      if (element.requestFullscreen) {
-        element.requestFullscreen().catch(() => {});
-      } else if (element.webkitRequestFullscreen) {
-        element.webkitRequestFullscreen();
-      } else if (element.mozRequestFullScreen) {
-        element.mozRequestFullScreen();
-      } else if (element.msRequestFullscreen) {
-        element.msRequestFullscreen();
-      }
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
-      } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
-      } else if (document.mozCancelFullScreen) {
-        document.mozCancelFullScreen();
-      } else if (document.msExitFullscreen) {
-        document.msExitFullscreen();
-      }
-    }
-  };
-
-  const toggleMute = () => {
-    if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
-    }
-  };
-
-  const handleVolumeChange = (e) => {
-    const newVolume = parseFloat(e.target.value);
-    setVolume(newVolume);
-    if (videoRef.current) {
-      videoRef.current.volume = newVolume;
-      setIsMuted(newVolume === 0);
-    }
-  };
-
-  const skipForward = () => {
-    if (videoRef.current) {
-      const newTime = Math.min(videoRef.current.currentTime + 10, videoRef.current.duration || Infinity);
-      videoRef.current.currentTime = newTime;
-      setCurrentTime(newTime);
-    }
-  };
-
-  const skipBackward = () => {
-    if (videoRef.current) {
-      const newTime = Math.max(videoRef.current.currentTime - 10, 0);
-      videoRef.current.currentTime = newTime;
-      setCurrentTime(newTime);
-    }
-  };
-
-  const togglePlayPause = () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
-
-  const handleVideoError = (e) => {
-    console.error('Video error event:', e);
-    const video = videoRef.current;
-    
-    // Clear any existing error timeout
-    if (errorTimeoutRef.current) {
-      clearTimeout(errorTimeoutRef.current);
-      errorTimeoutRef.current = null;
-    }
-    
-    if (!video || !videoUrl) {
-      // Wait much longer on mobile before showing error (30 seconds)
-      // On desktop, wait 15 seconds
-      const errorDelay = isMobile ? 30000 : 15000;
-      errorTimeoutRef.current = setTimeout(() => {
-        const currentVideo = videoRef.current;
-        // Only show error if video still has no src or has a persistent error
-        if (currentVideo && (!currentVideo.src || (currentVideo.error && currentVideo.readyState === 0))) {
-          // Double check video hasn't started playing
-          if (currentVideo.paused && currentVideo.currentTime === 0) {
-            setVideoError('Unable to play video directly. Please use an external player.');
-            setIsLoadingPlayback(false);
-          }
-        }
-      }, errorDelay);
-      return;
-    }
-
-    // Check error code
-    const error = video.error;
-    if (error) {
-      console.error('Video error code:', error.code, 'Message:', error.message);
-      
-      // Error code 4 (MEDIA_ERR_SRC_NOT_SUPPORTED) - try alternative approach
-      if (error.code === 4) {
-        // Try removing crossOrigin and reload - give more time on mobile
-        const retryDelay = isMobile ? 2000 : 1000;
-        setTimeout(() => {
-          if (video && videoUrl && video.error) {
-            video.removeAttribute('crossOrigin');
-            video.src = '';
-            video.load();
-            setTimeout(() => {
-              if (video && videoUrl) {
-                video.src = videoUrl;
-                video.removeAttribute('crossOrigin');
-                video.load();
-                
-                // Try to play after load
-                setTimeout(() => {
-                  if (video && !video.error && video.readyState >= 2) {
-                    video.play().catch(() => {
-                      // Don't show error immediately, wait much longer
-                    });
-                  }
-                }, 500);
-              }
-            }, retryDelay);
-          }
-        }, retryDelay);
-        return;
-      }
-    }
-
-    // Try to reload the video - be very patient, especially on mobile
-    // On mobile, wait 5 seconds before retry, on desktop wait 2 seconds
-    const reloadDelay = isMobile ? 5000 : 2000;
-    setTimeout(() => {
-      if (video && videoUrl && video.error) {
-        // Retry loading the video with fresh state
-        const currentSrc = video.src || videoUrl;
-        video.removeAttribute('crossOrigin');
-        video.src = '';
-        video.load();
-        setTimeout(() => {
-          if (video && videoUrl) {
-            video.src = currentSrc;
-            video.removeAttribute('crossOrigin');
-            video.load();
-            
-            // Try to play after a delay
-            setTimeout(() => {
-              if (video && !video.error && video.readyState >= 2) {
-                video.play().catch(() => {
-                  // Don't show error yet, video might still be loading
-                });
-              }
-            }, 1000);
-          }
-        }, reloadDelay);
-      } else if (video && !video.error) {
-        // Video recovered, clear error
-        setVideoError(null);
-        setIsLoadingPlayback(false);
-      }
-    }, reloadDelay);
-    
-    // Only show error after a very long delay if video is still in error state
-    // On mobile: 45 seconds total, on desktop: 25 seconds
-    const finalErrorDelay = isMobile ? 45000 : 25000;
-    errorTimeoutRef.current = setTimeout(() => {
-      const currentVideo = videoRef.current;
-      // Only show error if:
-      // 1. Video still exists
-      // 2. Video has an error
-      // 3. Video hasn't loaded any data (readyState === 0)
-      // 4. Video is paused and hasn't started playing
-      if (currentVideo && 
-          currentVideo.error && 
-          currentVideo.readyState === 0 && 
-          currentVideo.paused && 
-          currentVideo.currentTime === 0) {
-        setVideoError('Unable to play video directly. Please use an external player.');
-        setIsLoadingPlayback(false);
-      }
-    }, finalErrorDelay);
-  };
-
-  const openInVLC = async () => {
-    if (!selectedSource) return;
-    await openWithVLC(selectedSource);
-  };
-
-  const openInNewTab = () => {
-    if (videoUrl) {
-      window.open(videoUrl, '_blank', 'noopener noreferrer');
-    }
-  };
-
-  const downloadVideo = async () => {
-    if (!selectedSource) return;
-    await downloadFile(selectedSource);
   };
 
   const BASE = import.meta.env.VITE_BASE_URL;
@@ -1048,8 +319,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
     if (selectedQuality) {
       props.setSeasonNumber(selectedSeason.season_number);
       props.setEpisodeNumber(selectedEpisode.episode_number);
-      setSelectedSource(selectedQuality);
-      await loadVideoUrl(selectedQuality);
+      await tryDirectPlay(selectedQuality, `${props.movieData.title} S${selectedSeason.season_number}E${selectedEpisode.episode_number}`);
     }
   };
 
@@ -1088,13 +358,11 @@ export default function MoviesAndSeriesDetailsSections(props) {
     try {
       const downloadUrl = generateDownloadUrl(source.id, source.name);
       const shortUrl = await shortenUrl(downloadUrl);
-      
-      // Escape URL for use in JavaScript string
-      const escapedUrl = shortUrl.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
 
       const newWindow = window.open('', '_blank', 'width=1200,height=800');
       if (!newWindow) {
         setIsLoadingPlayback(false);
+        await showFallbackOptions(source, title);
         return;
       }
 
@@ -1103,8 +371,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
         <html>
           <head>
             <title>${title || source.name}</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-            <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: *; media-src *; video-src *;">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
             <style>
               body { 
                 margin: 0; 
@@ -1121,17 +388,7 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 width: 100%; 
                 height: 100vh; 
                 max-width: 100vw; 
-                object-fit: contain;
-                background: #000;
-                outline: none;
-              }
-              
-              video::-webkit-media-controls {
-                display: flex !important;
-              }
-              
-              video::-webkit-media-controls-panel {
-                display: flex !important;
+                object-fit: contain; 
               }
               .loading {
                 color: white;
@@ -1143,9 +400,6 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 transform: translate(-50%, -50%);
                 z-index: 100;
                 display: none;
-                font-size: 16px;
-                background: rgba(0, 0, 0, 0.7);
-                border-radius: 8px;
               }
               .title-overlay {
                 position: absolute;
@@ -1167,11 +421,9 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 bottom: 20px;
                 left: 50%;
                 transform: translateX(-50%);
-                display: none !important;
+                display: none;
                 gap: 10px;
-                z-index: -1;
-                visibility: hidden;
-                opacity: 0;
+                z-index: 100;
               }
               .fallback-btn {
                 background: rgba(239, 68, 68, 0.8);
@@ -1194,7 +446,11 @@ export default function MoviesAndSeriesDetailsSections(props) {
           <body>
             <div class="loading" id="loadingMsg"></div>
             <div class="title-overlay" id="titleOverlay">${title || source.name}</div>
-            <video controls preload="auto" playsinline webkit-playsinline x5-playsinline id="videoPlayer" style="width: 100%; height: 100vh; object-fit: contain;" controlsList="nodownload">
+            <video controls preload="metadata" id="videoPlayer">
+              <source src="${shortUrl}" type="video/mp4">
+              <source src="${shortUrl}" type="video/mkv">
+              <source src="${shortUrl}" type="video/webm">
+              Your browser does not support the video tag.
             </video>
             <div class="fallback-options" id="fallbackOptions">
               <button class="fallback-btn" onclick="openVLC()">Open in VLC</button>
@@ -1202,240 +458,74 @@ export default function MoviesAndSeriesDetailsSections(props) {
               <button class="fallback-btn" onclick="openDirect()">Direct Link</button>
             </div>
             <script>
-              (function() {
-                const video = document.getElementById('videoPlayer');
-                const loading = document.getElementById('loadingMsg');
-                const titleOverlay = document.getElementById('titleOverlay');
-                const fallbackOptions = document.getElementById('fallbackOptions');
-                let hasStartedPlaying = false;
-                let timeoutId;
+              const video = document.getElementById('videoPlayer');
+              const loading = document.getElementById('loadingMsg');
+              const titleOverlay = document.getElementById('titleOverlay');
+              const fallbackOptions = document.getElementById('fallbackOptions');
+              let hasStartedPlaying = false;
+              let timeoutId;
 
-                if (!video) {
-                  return;
-                }
-
-                // Set video src with proper configuration to prevent download
-                try {
-                  // Remove any download attribute
-                  video.removeAttribute('download');
-                  video.removeAttribute('crossOrigin');
-                  video.crossOrigin = null;
-                  
-                  // Set the source directly - browser should treat it as media
-                  video.src = "${escapedUrl}";
-                  
-                  // Ensure it's configured to play, not download
-                  video.setAttribute('preload', 'auto');
-                  video.setAttribute('playsinline', 'true');
-                  video.setAttribute('webkit-playsinline', 'true');
-                  video.setAttribute('x5-playsinline', 'true');
-                  video.setAttribute('controls', 'true');
-                  // Start muted for autoplay compatibility, then unmute when ready
-                  video.muted = true;
-                  video.volume = 1;
-                  
-                  // Prevent download button in controls (if supported)
-                  try {
-                    video.setAttribute('controlsList', 'nodownload');
-                  } catch (e) {}
-                  
-                  // Load the video
-                  video.load();
-                  
-                } catch (err) {
-                  // Silently handle errors
-                }
-
-                // Handle video errors silently - don't show error messages
-                video.addEventListener('error', (e) => {
-                  try {
-                    // Silently handle errors - don't show anything
-                    if (loading) loading.style.display = 'none';
-                    if (fallbackOptions) fallbackOptions.classList.remove('show-fallback');
-                    if (timeoutId) clearTimeout(timeoutId);
-                    
-                    // Try to recover by reloading
-                    setTimeout(() => {
-                      if (video && video.error) {
-                        try {
-                          const currentSrc = video.src;
-                          video.src = '';
-                          video.load();
-                          setTimeout(() => {
-                            if (video) {
-                              video.src = currentSrc;
-                              video.load();
-                            }
-                          }, 500);
-                        } catch (reloadErr) {
-                          // Silently fail
-                        }
-                      }
-                    }, 1000);
-                  } catch (err) {
-                    // Silently handle all errors
+              video.addEventListener('loadstart', () => {
+                timeoutId = setTimeout(() => {
+                  if (!hasStartedPlaying) {
+                    loading.innerHTML = 'Having trouble loading? Try alternative options below:';
+                    loading.style.display = 'block';
+                    fallbackOptions.classList.add('show-fallback');
                   }
-                });
+                }, 20000);
+              });
 
-                video.addEventListener('loadstart', () => {
-                  try {
-                    if (loading) {
-                      loading.style.display = 'block';
-                      loading.innerHTML = 'Loading video...';
-                    }
-                  } catch (err) {
-                    // Silently handle
-                  }
-                });
+              video.addEventListener('loadeddata', () => {
+                loading.style.display = 'none';
+                clearTimeout(timeoutId);
+              });
 
-                video.addEventListener('loadeddata', () => {
-                  try {
-                    if (loading) loading.style.display = 'none';
-                    if (timeoutId) clearTimeout(timeoutId);
-                    // Unmute and try to play when data is loaded
-                    if (video) {
-                      video.muted = false;
-                      if (video.paused) {
-                        video.play().catch(() => {
-                          // Silently handle autoplay prevention
-                        });
-                      }
-                    }
-                  } catch (err) {
-                    // Silently handle
-                  }
-                });
-
-                video.addEventListener('playing', () => {
-                  try {
-                    hasStartedPlaying = true;
-                    if (loading) loading.style.display = 'none';
-                    if (fallbackOptions) fallbackOptions.classList.remove('show-fallback');
-                    if (timeoutId) clearTimeout(timeoutId);
-                    
-                    if (titleOverlay) {
-                      setTimeout(() => {
-                        if (titleOverlay) titleOverlay.style.opacity = '0';
-                      }, 3000);
-                    }
-                  } catch (err) {
-                    // Silently handle
-                  }
-                });
-                
-                // Also try to play on canplay event
-                video.addEventListener('canplay', () => {
-                  try {
-                    if (video) {
-                      video.muted = false;
-                      if (video.paused && !hasStartedPlaying) {
-                        video.play().catch(() => {
-                          // Silently handle autoplay prevention
-                        });
-                      }
-                    }
-                  } catch (err) {
-                    // Silently handle
-                  }
-                }, { once: true });
-                
-                video.addEventListener('canplaythrough', () => {
-                  try {
-                    if (loading) loading.style.display = 'none';
-                    if (video) {
-                      video.muted = false;
-                      if (video.paused && !hasStartedPlaying) {
-                        video.play().catch(() => {
-                          // Silently handle autoplay prevention
-                        });
-                      }
-                    }
-                  } catch (err) {
-                    // Silently handle
-                  }
-                }, { once: true });
-
-
-                function openVLC() {
-                  try {
-                    const userAgent = navigator.userAgent;
-                    const videoUrl = "${escapedUrl}";
-                    if (/Android/i.test(userAgent)) {
-                      window.location.href = 'intent:' + videoUrl + '#Intent;package=org.videolan.vlc;type=video/*;action=android.intent.action.VIEW;S.title=${encodeURIComponent(source.name.replace(/'/g, "\\'"))};end;';
-                    } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
-                      window.location.href = 'vlc-x-callback://x-callback-url/stream?url=' + encodeURIComponent(videoUrl);
-                    } else {
-                      window.open(videoUrl, '_blank');
-                    }
-                  } catch (err) {
-                    // Silently handle
-                  }
-                }
-
-                function downloadFile() {
-                  try {
-                    const a = document.createElement('a');
-                    a.href = "${escapedUrl}";
-                    a.download = '${source.name.replace(/'/g, "\\'")}';
-                    a.target = '_blank';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                  } catch (err) {
-                    // Silently handle
-                  }
-                }
-
-                function openDirect() {
-                  try {
-                    window.open("${escapedUrl}", '_blank');
-                  } catch (err) {
-                    // Silently handle
-                  }
-                }
-
-                // Make functions globally available
-                window.openVLC = openVLC;
-                window.downloadFile = downloadFile;
-                window.openDirect = openDirect;
-
-                // Try to play after a delay - multiple attempts
-                setTimeout(() => {
-                  try {
-                    if (video && video.readyState >= 2 && video.paused) {
-                      video.play().catch(() => {
-                        // Silently handle autoplay errors
-                      });
-                    }
-                  } catch (err) {
-                    // Silently handle
-                  }
-                }, 500);
+              video.addEventListener('playing', () => {
+                hasStartedPlaying = true;
+                loading.style.display = 'none';
+                fallbackOptions.classList.remove('show-fallback');
+                clearTimeout(timeoutId);
                 
                 setTimeout(() => {
-                  try {
-                    if (video && video.readyState >= 2 && video.paused) {
-                      video.play().catch(() => {
-                        // Silently handle autoplay errors
-                      });
-                    }
-                  } catch (err) {
-                    // Silently handle
-                  }
-                }, 1500);
-                
-                setTimeout(() => {
-                  try {
-                    if (video && video.readyState >= 2 && video.paused) {
-                      video.play().catch(() => {
-                        // Silently handle autoplay errors
-                      });
-                    }
-                  } catch (err) {
-                    // Silently handle
-                  }
+                  titleOverlay.style.opacity = '0';
                 }, 3000);
-              })();
+              });
+
+              video.addEventListener('error', (e) => {
+                loading.innerHTML = 'Failed to load video. Try alternative options:';
+                loading.style.display = 'block';
+                fallbackOptions.classList.add('show-fallback');
+                clearTimeout(timeoutId);
+              });
+
+              function openVLC() {
+                const userAgent = navigator.userAgent;
+                if (/Android/i.test(userAgent)) {
+                  window.location.href = 'intent:${shortUrl}#Intent;package=org.videolan.vlc;type=video/*;action=android.intent.action.VIEW;S.title=${encodeURIComponent(source.name)};end;';
+                } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
+                  window.location.href = 'vlc-x-callback://x-callback-url/stream?url=${encodeURIComponent(shortUrl)}';
+                } else {
+                  window.open('${shortUrl}', '_blank');
+                }
+              }
+
+              function downloadFile() {
+                const a = document.createElement('a');
+                a.href = '${shortUrl}';
+                a.download = '${source.name}';
+                a.target = '_blank';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+              }
+
+              function openDirect() {
+                window.open('${shortUrl}', '_blank');
+              }
+
+              setTimeout(() => {
+                video.play().catch(() => {});
+              }, 1000);
             </script>
           </body>
         </html>
@@ -1443,8 +533,8 @@ export default function MoviesAndSeriesDetailsSections(props) {
       newWindow.document.close();
 
     } catch (error) {
-      // Silently handle errors
-      setIsLoadingPlayback(false);
+      console.error("Direct play failed:", error);
+      await showFallbackOptions(source, title);
     } finally {
       setIsLoadingPlayback(false);
     }
@@ -1471,62 +561,13 @@ export default function MoviesAndSeriesDetailsSections(props) {
       return;
     }
 
-    // On mobile, redirect to new window player (like old version)
-    if (isMobile) {
-      const bestSource = sources[0];
-      if (!bestSource) {
-        await Swal.fire({
-          title: 'No Sources Available',
-          text: 'No playable sources found for this content.',
-          icon: 'error',
-          confirmButtonText: 'OK',
-          confirmButtonColor: '#e11d48',
-          background: '#1f2937',
-          color: '#ffffff'
-        });
-        return;
-      }
-      // Use tryDirectPlay to open new window with video player
-      await tryDirectPlay(bestSource, props.movieData?.title);
-      return;
-    }
+    const bestQuality = sources.sort((a, b) => {
+      const aSize = parseInt(a.quality.replace("p", ""), 10);
+      const bSize = parseInt(b.quality.replace("p", ""), 10);
+      return bSize - aSize;
+    })[0];
 
-    // Desktop logic - If multiple qualities, let user choose
-    if (sources.length > 1) {
-      const { value: qualityChoice } = await Swal.fire({
-        title: 'Select Quality',
-        input: 'select',
-        inputOptions: sources.reduce((acc, source) => {
-          acc[source.quality] = source.quality;
-          return acc;
-        }, {}),
-        inputPlaceholder: 'Choose quality',
-        showCancelButton: true,
-        confirmButtonText: 'Play',
-        cancelButtonText: 'Cancel',
-        confirmButtonColor: '#e11d48',
-        cancelButtonColor: '#6b7280',
-        background: '#1f2937',
-        color: '#ffffff',
-        inputValidator: (value) => {
-          if (!value) {
-            return 'Please select a quality';
-          }
-        }
-      });
-
-      if (!qualityChoice) {
-        return;
-      }
-
-      const selectedSource = sources.find(s => s.quality === qualityChoice);
-      setSelectedSource(selectedSource);
-      await loadVideoUrl(selectedSource);
-    } else {
-      // Single quality, play directly
-      setSelectedSource(sources[0]);
-      await loadVideoUrl(sources[0]);
-    }
+    await tryDirectPlay(bestQuality, props.movieData.title);
   };
 
   const handleEpisodeClick = async (episode) => {
@@ -1546,81 +587,33 @@ export default function MoviesAndSeriesDetailsSections(props) {
       return;
     }
 
-    // If multiple qualities, let user choose
-    if (sources.length > 1) {
-      const { value: qualityChoice } = await Swal.fire({
-        title: 'Select Quality',
-        input: 'select',
-        inputOptions: sources.reduce((acc, source) => {
-          acc[source.quality] = source.quality;
-          return acc;
-        }, {}),
-        inputPlaceholder: 'Choose quality',
-        showCancelButton: true,
-        confirmButtonText: 'Play',
-        cancelButtonText: 'Cancel',
-        confirmButtonColor: '#e11d48',
-        cancelButtonColor: '#6b7280',
-        background: '#1f2937',
-        color: '#ffffff',
-        inputValidator: (value) => {
-          if (!value) {
-            return 'Please select a quality';
-          }
-        }
-      });
+    const bestQuality = sources.sort((a, b) => {
+      const aSize = parseInt(a.quality.replace("p", ""), 10);
+      const bSize = parseInt(b.quality.replace("p", ""), 10);
+      return bSize - aSize;
+    })[0];
 
-      if (!qualityChoice) {
-        return;
-      }
-
-      const selectedSource = sources.find(s => s.quality === qualityChoice);
-      setSelectedSource(selectedSource);
-      await loadVideoUrl(selectedSource);
-    } else {
-      // Single quality, play directly
-      setSelectedSource(sources[0]);
-      await loadVideoUrl(sources[0]);
-    }
+    await tryDirectPlay(bestQuality, `${props.movieData.title} S${props.seasonNumber}E${episode.episode_number}`);
   };
 
   return (
-    <div className="relative mt-4 sm:mt-6 md:mt-8 bg-gradient-to-br from-gray-900/30 via-gray-800/20 to-black/50 backdrop-blur-sm border border-white/20 p-4 md:p-8 lg:p-10 rounded-2xl shadow-2xl">
+    <div className="relative mt-20 bg-gradient-to-br from-gray-900/30 via-gray-800/20 to-black/50 backdrop-blur-sm border border-white/20 p-4 md:p-8 lg:p-10 rounded-2xl shadow-2xl">
       {!props.isMovieDataLoading ? (
         <>
-          <div className={`grid ${isMobile && isPlayingMovie ? 'grid-cols-1' : 'lg:grid-cols-2'} content-center items-center gap-6 lg:gap-8`}>
+          <div className="grid lg:grid-cols-2 content-center items-center gap-6 lg:gap-8">
             <div
-              className={`w-full relative shrink-0 bg-black rounded-2xl ${isMobile && isPlayingMovie ? 'col-span-1 overflow-visible' : 'overflow-hidden'}`}
-              style={isMobile && isPlayingMovie ? {
-                width: '100%',
-                height: 'auto',
-                minHeight: '60vh',
-                maxHeight: 'none',
-                aspectRatio: '16/9', // Maintain 16:9 aspect ratio to match video
-                zIndex: 50,
-                position: 'relative',
-                display: 'block',
-                visibility: 'visible',
-                opacity: 1,
-                backgroundColor: '#000',
-                overflow: 'hidden' // Prevent overflow
-              } : isMobile ? {
-                aspectRatio: '16/9',
-                maxHeight: '50vh',
-                minHeight: '200px'
-              } : {
-                aspectRatio: '16/9',
-                maxHeight: '60vh',
-                minHeight: '300px'
-              }}
+              onClick={handlePlayClick}
+              className="aspect-video w-full relative flex items-center shrink-0 bg-gradient-to-br from-gray-700/20 to-gray-900/40 rounded-2xl cursor-pointer transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-xl hover:shadow-white/20 group overflow-hidden"
             >
-              {/* Favorite Button - Upper Right Corner */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
+
+              {/* Favorite Heart Icon - Top Right Corner */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleFavorite();
                 }}
-                className="absolute top-3 right-3 z-30 p-2.5 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:border-red-500/50 text-white transition-all duration-300 hover:scale-110 hover:bg-black/80 shadow-lg"
+                className="absolute top-3 right-3 z-30 p-2 rounded-full backdrop-blur-xl bg-black/70 border border-red-400/40 text-red-400 transition-all duration-300 hover:bg-black/80 hover:border-red-300/50 hover:shadow-red-400/20 hover:scale-110"
                 title={isFavorite ? "Remove from favorites" : "Add to favorites"}
               >
                 {isFavorite ? (
@@ -1630,898 +623,28 @@ export default function MoviesAndSeriesDetailsSections(props) {
                 )}
               </button>
 
-              {/* Poster Image - Always show as background until video is playing */}
-              {(!isPlayingMovie || !isPlaying || !videoRef.current || videoRef.current.paused || videoRef.current.readyState < 3) && (
-                <>
-                  <img
-                    src={props.movieData.backdrop || props.movieData.poster}
-                    alt={props.movieData.title}
-                    className="absolute inset-0 w-full h-full object-cover rounded-2xl z-10"
-                    loading="eager"
-                    fetchPriority="high"
-                    decoding="async"
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      objectPosition: 'center 60%',
-                      display: 'block',
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      zIndex: 10,
-                      opacity: isPlayingMovie && isPlaying ? 0 : 1,
-                      transition: 'opacity 0.3s ease-in-out'
-                    }}
-                    onLoad={(e) => {
-                      e.target.style.opacity = '1';
-                    }}
-                    onError={(e) => {
-                      if (props.movieData.poster && e.target.src !== props.movieData.poster) {
-                        e.target.src = props.movieData.poster;
-                      }
-                    }}
-                  />
-                  {/* Loading indicator when video is loading */}
-                  {isPlayingMovie && isLoadingPlayback && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-15 rounded-2xl">
-                      <div className="text-white text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500 mx-auto mb-4"></div>
-                        <p className="text-sm">Loading video...</p>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Video Player - ALWAYS RENDER (hidden when not playing) - CRITICAL FOR IMMEDIATE PLAYBACK */}
-              <div 
-                ref={containerRef} 
-                className={`relative w-full h-full flex items-center justify-center bg-black ${isFullscreen ? 'fixed inset-0 z-50' : ''} ${!isPlayingMovie || !videoUrl ? 'hidden' : ''}`}
-                style={{
-                  ...(isFullscreen ? {
-                    width: '100vw',
-                    height: '100vh',
-                    minHeight: '100vh',
-                    maxHeight: '100vh',
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    zIndex: 9999,
-                    backgroundImage: `url(${props.movieData.backdrop || props.movieData.poster})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center 60%',
-                    backgroundRepeat: 'no-repeat'
-                  } : (isMobile && isPlayingMovie ? {
-                    // On mobile, fill the poster container perfectly
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    width: '100%',
-                    height: '100%',
-                    minHeight: '100%',
-                    maxHeight: '100%',
-                    zIndex: 20,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    overflow: 'hidden',
-                    backgroundColor: '#000',
-                    borderRadius: '1rem'
-                  } : isMobile ? {
-                    minHeight: '200px',
-                    maxHeight: '50vh',
-                    width: '100%',
-                    position: 'relative',
-                    zIndex: 10,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  } : {
-                    minHeight: '300px',
-                    maxHeight: '60vh',
-                    width: '100%',
-                    position: 'relative',
-                    zIndex: 10
-                  })),
-                  ...(!isPlayingMovie || !videoUrl ? {
-                    display: 'none',
-                    visibility: 'hidden',
-                    opacity: 0,
-                    position: 'absolute',
-                    width: 0,
-                    height: 0,
-                    overflow: 'hidden'
-                  } : {})
-                }}
-                onTouchStart={() => {
-                  setShowControls(true);
-                  if (controlsTimeoutRef.current) {
-                    clearTimeout(controlsTimeoutRef.current);
-                  }
-                  controlsTimeoutRef.current = setTimeout(() => {
-                    if (isPlaying) {
-                      setShowControls(false);
-                    }
-                  }, 4000);
-                }}
-                onMouseMove={() => {
-                  if (!isMobile) {
-                    setShowControls(true);
-                    if (controlsTimeoutRef.current) {
-                      clearTimeout(controlsTimeoutRef.current);
-                    }
-                    controlsTimeoutRef.current = setTimeout(() => {
-                      if (isPlaying) {
-                        setShowControls(false);
-                      }
-                    }, 3000);
-                  }
-                }}
-                onClick={(e) => {
-                  // On desktop, clicking video shows controls and toggles play/pause
-                  if (!isMobile && isPlayingMovie && videoUrl) {
-                    // Don't toggle if clicking on controls
-                    if (e.target.closest('.video-controls-overlay')) {
-                      return;
-                    }
-                    // Toggle play/pause
-                    togglePlayPause();
-                    // Show controls
-                    setShowControls(true);
-                    if (controlsTimeoutRef.current) {
-                      clearTimeout(controlsTimeoutRef.current);
-                    }
-                    controlsTimeoutRef.current = setTimeout(() => {
-                      if (isPlaying) {
-                        setShowControls(false);
-                      }
-                    }, 4000);
-                  }
-                }}
-              >
-                {videoError && videoRef.current && videoRef.current.error && videoRef.current.readyState === 0 && videoRef.current.paused && videoRef.current.currentTime === 0 ? (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 z-20 p-6">
-                    <div className="text-center text-white mb-4 max-w-md">
-                      <p className="text-lg font-semibold mb-2">{videoError}</p>
-                      <p className="text-sm text-gray-400 mb-6">Try one of these options:</p>
-                      <div className="flex flex-wrap gap-3 justify-center">
-                        <button
-                          onClick={openInVLC}
-                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium text-sm"
-                        >
-                          Open in VLC
-                        </button>
-                        <button
-                          onClick={openInNewTab}
-                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium text-sm"
-                        >
-                          Open in New Tab
-                        </button>
-                        <button
-                          onClick={downloadVideo}
-                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium text-sm"
-                        >
-                          Download
-                        </button>
-                        <button
-                          onClick={stopPlaying}
-                          className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors font-medium text-sm"
-                        >
-                          Close
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-                <video
-                  ref={videoRef}
-                  className={`w-full h-full ${isFullscreen ? 'object-cover' : 'object-contain max-h-full'}`}
-                  style={{
-                    ...(isFullscreen ? {
-                      width: '100vw',
-                      height: '100vh',
-                      maxWidth: '100vw',
-                      maxHeight: '100vh',
-                      minWidth: '100vw',
-                      minHeight: '100vh'
-                    } : isMobile && isPlayingMovie ? {
-                      // On mobile, fill the container perfectly - preserve aspect ratio without distortion
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      width: '100%',
-                      height: '100%',
-                      minWidth: '100%',
-                      minHeight: '100%',
-                      maxWidth: '100%',
-                      maxHeight: '100%',
-                      objectFit: 'contain' // Use contain to preserve aspect ratio without distortion
-                    } : isMobile ? {
-                      width: '100%',
-                      height: '50vh',
-                      minWidth: '100%',
-                      minHeight: '200px',
-                      maxWidth: '100%',
-                      maxHeight: '50vh'
-                    } : {
-                      width: '100%',
-                      height: 'auto',
-                      minWidth: '100%',
-                      minHeight: '300px',
-                      maxWidth: '100%',
-                      maxHeight: '60vh'
-                    }),
-                    backgroundColor: '#000',
-                    objectFit: isFullscreen ? 'cover' : 'contain', // Always use contain to preserve aspect ratio (except fullscreen)
-                    position: isMobile && isPlayingMovie ? 'absolute' : 'relative',
-                    zIndex: 20,
-                    display: (isPlayingMovie && videoUrl) ? 'block !important' : 'none',
-                    visibility: (isPlayingMovie && videoUrl) ? 'visible !important' : 'hidden',
-                    opacity: (isPlayingMovie && videoUrl) ? '1 !important' : '0',
-                    pointerEvents: (isPlayingMovie && videoUrl) ? 'auto' : 'none',
-                    margin: 0,
-                    padding: 0,
-                    borderRadius: isMobile && isPlayingMovie ? '1rem' : '0',
-                    // FORCE visibility on mobile - CRITICAL
-                    ...(isMobile && isPlayingMovie && videoUrl ? {
-                      width: '100% !important',
-                      height: '100% !important',
-                      minWidth: '100% !important',
-                      minHeight: '100% !important',
-                      maxWidth: '100% !important',
-                      maxHeight: '100% !important',
-                      display: 'block !important',
-                      visibility: 'visible !important',
-                      opacity: '1 !important',
-                      zIndex: '20 !important',
-                      position: 'absolute !important',
-                      top: '0 !important',
-                      left: '0 !important',
-                      right: '0 !important',
-                      bottom: '0 !important',
-                      objectFit: 'contain !important', // Preserve aspect ratio without distortion
-                      willChange: 'auto',
-                      transform: 'translateZ(0)',
-                      WebkitTransform: 'translateZ(0)',
-                      backfaceVisibility: 'visible',
-                      WebkitBackfaceVisibility: 'visible',
-                      WebkitPlaysinline: true,
-                      playsInline: true
-                    } : {})
-                  }}
-                  src={videoUrl || undefined}
-                  poster={props.movieData.backdrop}
-                  autoPlay={isPlayingMovie && videoUrl}
-                  playsInline
-                  preload={isMobile ? "metadata" : "auto"}
-                  crossOrigin={null}
-                  webkit-playsinline="true"
-                  x5-playsinline="true"
-                  x5-video-player-type="h5"
-                  x5-video-player-fullscreen="true"
-                  x5-video-orientation="portrait"
-                  controls={false}
-                  muted={false}
-                  loop={false}
-                  disablePictureInPicture={true}
-                  disableRemotePlayback={true}
-                          onEnded={stopPlaying}
-                          onError={handleVideoError}
-                          onLoadStart={() => {
-                            // Start loading indicator immediately
-                            setIsLoadingPlayback(true);
-                          }}
-                          onLoadedMetadata={() => {
-                            if (videoRef.current) {
-                              setDuration(videoRef.current.duration);
-                              // Clear any errors when metadata loads successfully
-                              setVideoError(null);
-                              if (errorTimeoutRef.current) {
-                                clearTimeout(errorTimeoutRef.current);
-                                errorTimeoutRef.current = null;
-                              }
-                              // On mobile, try to play immediately after metadata loads - be EXTREMELY aggressive
-                              if (isMobile) {
-                                // Try multiple times with increasing delays - don't wait for readyState
-                                let attempts = 0;
-                                const tryPlay = () => {
-                                  attempts++;
-                                  if (videoRef.current && attempts <= 20) {
-                                    videoRef.current.play().then(() => {
-                                      setIsPlaying(true);
-                                      setIsLoadingPlayback(false);
-                                      setVideoError(null);
-                                    }).catch(() => {
-                                      // Retry with delay
-                                      if (attempts < 20) {
-                                        setTimeout(tryPlay, 150 * Math.min(attempts, 8));
-                                      }
-                                    });
-                                  }
-                                };
-                                // Try immediately and many times
-                                tryPlay();
-                                setTimeout(tryPlay, 50);
-                                setTimeout(tryPlay, 100);
-                                setTimeout(tryPlay, 200);
-                                setTimeout(tryPlay, 400);
-                                setTimeout(tryPlay, 700);
-                                setTimeout(tryPlay, 1200);
-                                setTimeout(tryPlay, 2000);
-                              }
-                            }
-                          }}
-                          onCanPlay={() => {
-                            setIsLoadingPlayback(false);
-                            setVideoError(null); // Clear any previous errors
-                            // Clear any pending error timeouts
-                            if (errorTimeoutRef.current) {
-                              clearTimeout(errorTimeoutRef.current);
-                              errorTimeoutRef.current = null;
-                            }
-                            // Ensure video is visible and ready - FORCE visibility
-                            if (videoRef.current) {
-                              videoRef.current.style.setProperty('display', 'block', 'important');
-                              videoRef.current.style.setProperty('visibility', 'visible', 'important');
-                              videoRef.current.style.setProperty('opacity', '1', 'important');
-                              videoRef.current.style.setProperty('z-index', '50', 'important');
-                              videoRef.current.style.setProperty('position', 'relative', 'important');
-                            }
-                            
-                            // Ensure container is visible
-                            if (containerRef.current) {
-                              containerRef.current.style.setProperty('display', 'flex', 'important');
-                              containerRef.current.style.setProperty('visibility', 'visible', 'important');
-                              containerRef.current.style.setProperty('opacity', '1', 'important');
-                              containerRef.current.style.setProperty('z-index', '50', 'important');
-                            }
-                            if (videoRef.current) {
-                              setDuration(videoRef.current.duration);
-                              // Force play immediately - user already clicked play button
-                              // Play on BOTH mobile and desktop
-                              let playAttempts = 0;
-                              const forcePlay = () => {
-                                playAttempts++;
-                                if (videoRef.current && videoRef.current.src && playAttempts <= 25) {
-                                  const playPromise = videoRef.current.play();
-                                  if (playPromise !== undefined) {
-                                    playPromise
-                                        .then(() => {
-                                          setIsPlaying(true);
-                                          setIsLoadingPlayback(false);
-                                          setVideoError(null);
-                                          console.log('✅✅✅ VIDEO PLAYING on canPlay event!');
-                                        })
-                                        .catch(err => {
-                                          // Keep retrying, don't give up
-                                          if (playAttempts < 25) {
-                                            setTimeout(() => {
-                                              if (videoRef.current && !videoRef.current.error) {
-                                                forcePlay();
-                                              }
-                                            }, 100 * Math.min(playAttempts, 10));
-                                          }
-                                        });
-                                  } else {
-                                    // If play() returns undefined, try again
-                                    setTimeout(() => forcePlay(), 50);
-                                  }
-                                }
-                              };
-                              // Start playing immediately and many times - for BOTH mobile and desktop
-                              forcePlay();
-                              setTimeout(() => forcePlay(), 50);
-                              setTimeout(() => forcePlay(), 100);
-                              setTimeout(() => forcePlay(), 200);
-                              setTimeout(() => forcePlay(), 400);
-                              setTimeout(() => forcePlay(), 800);
-                              setTimeout(() => forcePlay(), 1500);
-                              setTimeout(() => forcePlay(), 2500);
-                            }
-                          }}
-                          onCanPlayThrough={() => {
-                            // Video can play through without buffering
-                            setIsLoadingPlayback(false);
-                          }}
-                          onLoadedData={() => {
-                            setIsLoadingPlayback(false);
-                            setVideoError(null); // Clear errors when data loads
-                            // Clear any pending error timeouts
-                            if (errorTimeoutRef.current) {
-                              clearTimeout(errorTimeoutRef.current);
-                              errorTimeoutRef.current = null;
-                            }
-                            // Ensure video is visible - FORCE visibility
-                            if (videoRef.current) {
-                              videoRef.current.style.setProperty('display', 'block', 'important');
-                              videoRef.current.style.setProperty('visibility', 'visible', 'important');
-                              videoRef.current.style.setProperty('opacity', '1', 'important');
-                              videoRef.current.style.setProperty('z-index', '50', 'important');
-                              videoRef.current.style.setProperty('position', 'relative', 'important');
-                              
-                              // On desktop, try to play when data is loaded
-                              if (!isMobile && isPlayingMovie && videoRef.current.paused) {
-                                videoRef.current.play()
-                                  .then(() => {
-                                    setIsPlaying(true);
-                                    setIsLoadingPlayback(false);
-                                    setVideoError(null);
-                                    console.log('✅ Desktop video playing after loadedData');
-                                  })
-                                  .catch((err) => {
-                                    console.log('Desktop play on loadedData failed:', err);
-                                  });
-                              }
-                            }
-                            
-                            // Ensure container is visible
-                            if (containerRef.current) {
-                              containerRef.current.style.setProperty('display', 'flex', 'important');
-                              containerRef.current.style.setProperty('visibility', 'visible', 'important');
-                              containerRef.current.style.setProperty('opacity', '1', 'important');
-                              containerRef.current.style.setProperty('z-index', '50', 'important');
-                            }
-                            if (videoRef.current) {
-                              setDuration(videoRef.current.duration);
-                              // On mobile, ensure play if still paused - be EXTREMELY aggressive
-                              if (isMobile && videoRef.current.paused) {
-                                // Try to play immediately, many times - don't wait for readyState
-                                let playAttempts = 0;
-                                const tryPlay = () => {
-                                  playAttempts++;
-                                  if (videoRef.current && videoRef.current.paused && playAttempts <= 15) {
-                                    videoRef.current.play()
-                                      .then(() => {
-                                        setIsPlaying(true);
-                                        setIsLoadingPlayback(false);
-                                        setVideoError(null);
-                                      })
-                                      .catch(() => {
-                                        // Keep retrying
-                                        if (playAttempts < 15) {
-                                          setTimeout(tryPlay, 200 * Math.min(playAttempts, 5));
-                                        }
-                                      });
-                                  }
-                                };
-                                // Try immediately and many times
-                                tryPlay();
-                                setTimeout(tryPlay, 50);
-                                setTimeout(tryPlay, 100);
-                                setTimeout(tryPlay, 200);
-                                setTimeout(tryPlay, 400);
-                                setTimeout(tryPlay, 800);
-                                setTimeout(tryPlay, 1500);
-                              }
-                            }
-                          }}
-                          onWaiting={() => {
-                            // Show loading when buffering
-                            setIsLoadingPlayback(true);
-                            // On mobile, try to improve buffering by reducing playback rate temporarily
-                            if (isMobile && videoRef.current && !videoRef.current.paused) {
-                              const currentRate = videoRef.current.playbackRate;
-                              if (currentRate === 1) {
-                                // Slightly reduce rate to help buffer catch up
-                                videoRef.current.playbackRate = 0.95;
-                                setTimeout(() => {
-                                  if (videoRef.current && !videoRef.current.paused) {
-                                    videoRef.current.playbackRate = 1;
-                                  }
-                                }, 1000);
-                              }
-                            }
-                          }}
-                          onProgress={() => {
-                            // Hide loading when enough data is buffered
-                            if (videoRef.current && videoRef.current.buffered.length > 0) {
-                              const bufferedEnd = videoRef.current.buffered.end(0);
-                              const currentTime = videoRef.current.currentTime;
-                              // On mobile, require more buffer (5 seconds) for smoother playback
-                              const bufferThreshold = isMobile ? 5 : 3;
-                              if (bufferedEnd - currentTime > bufferThreshold) {
-                                setIsLoadingPlayback(false);
-                              }
-                            }
-                          }}
-                          onPlaying={() => {
-                            setIsLoadingPlayback(false);
-                            setIsPlaying(true);
-                            setVideoError(null); // Clear any errors when video starts playing
-                            // Clear any pending error timeouts since video is playing
-                            if (errorTimeoutRef.current) {
-                              clearTimeout(errorTimeoutRef.current);
-                              errorTimeoutRef.current = null;
-                            }
-                            
-                            // FORCE video visibility when playing
-                            if (videoRef.current) {
-                              videoRef.current.style.setProperty('display', 'block', 'important');
-                              videoRef.current.style.setProperty('visibility', 'visible', 'important');
-                              videoRef.current.style.setProperty('opacity', '1', 'important');
-                              videoRef.current.style.setProperty('z-index', '50', 'important');
-                              videoRef.current.style.setProperty('position', 'relative', 'important');
-                            }
-                            
-                            // FORCE container visibility
-                            if (containerRef.current) {
-                              containerRef.current.style.setProperty('display', 'flex', 'important');
-                              containerRef.current.style.setProperty('visibility', 'visible', 'important');
-                              containerRef.current.style.setProperty('opacity', '1', 'important');
-                              containerRef.current.style.setProperty('z-index', '50', 'important');
-                            }
-                            
-                            // On mobile, ensure video is visible and in viewport
-                            if (isMobile && videoRef.current) {
-                              const video = videoRef.current;
-                              // Ensure video is visible
-                              video.style.display = 'block';
-                              video.style.visibility = 'visible';
-                              video.style.opacity = '1';
-                              video.style.zIndex = '1';
-                              
-                              // Scroll video into view if needed
-                              video.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                              
-                              // Prevent picture-in-picture on mobile
-                              if (video.requestPictureInPicture && document.pictureInPictureElement) {
-                                document.exitPictureInPicture().catch(() => {});
-                              }
-                            }
-                            
-                            setShowControls(true);
-                            if (controlsTimeoutRef.current) {
-                              clearTimeout(controlsTimeoutRef.current);
-                            }
-                            // On mobile, show controls longer
-                            controlsTimeoutRef.current = setTimeout(() => {
-                              if (isPlaying) {
-                                setShowControls(false);
-                              }
-                            }, isMobile ? 5000 : 3000);
-                          }}
-                          onStalled={() => {
-                            // Video stalled, show loading
-                            setIsLoadingPlayback(true);
-                            // On mobile, try to recover from stall
-                            if (isMobile && videoRef.current) {
-                              setTimeout(() => {
-                                if (videoRef.current && videoRef.current.readyState < 4) {
-                                  // Try to reload the video source
-                                  const currentSrc = videoRef.current.src;
-                                  const currentTime = videoRef.current.currentTime;
-                                  videoRef.current.load();
-                                  videoRef.current.addEventListener('loadeddata', () => {
-                                    if (videoRef.current) {
-                                      videoRef.current.currentTime = currentTime;
-                                      videoRef.current.play().catch(() => {});
-                                    }
-                                  }, { once: true });
-                                }
-                              }, 2000);
-                            }
-                          }}
-                          onSuspend={() => {
-                            // Loading suspended, might be buffering
-                            if (videoRef.current && videoRef.current.readyState < 3) {
-                              setIsLoadingPlayback(true);
-                            }
-                          }}
-                          onRateChange={() => {
-                            // Ensure playback rate is correct
-                            if (videoRef.current && videoRef.current.playbackRate !== 1 && !isLoadingPlayback) {
-                              videoRef.current.playbackRate = 1;
-                            }
-                          }}
-                          onPause={() => {
-                            setIsPlaying(false);
-                            setShowControls(true);
-                            if (controlsTimeoutRef.current) {
-                              clearTimeout(controlsTimeoutRef.current);
-                            }
-                          }}
-                          onTimeUpdate={() => {
-                            if (videoRef.current) {
-                              setCurrentTime(videoRef.current.currentTime);
-                              if (!duration || isNaN(duration)) {
-                                setDuration(videoRef.current.duration);
-                              }
-                              // If video is playing and has currentTime > 0, clear any errors
-                              if (videoRef.current.currentTime > 0 && !videoRef.current.error) {
-                                setVideoError(null);
-                                setIsLoadingPlayback(false);
-                              }
-                            }
-                          }}
-                        />
-                        
-                        {/* Custom Controls Overlay */}
-                        <div 
-                          className={`video-controls-overlay absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent ${isMobile ? 'p-3' : 'p-4'} z-20 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
-                          style={{
-                            pointerEvents: showControls ? 'auto' : 'none'
-                          }}
-                          onClick={(e) => {
-                            // Prevent video toggle when clicking on controls
-                            e.stopPropagation();
-                          }}
-                          onMouseEnter={() => {
-                            // Show controls on hover (desktop)
-                            if (!isMobile) {
-                              setShowControls(true);
-                              if (controlsTimeoutRef.current) {
-                                clearTimeout(controlsTimeoutRef.current);
-                              }
-                            }
-                          }}
-                          onTouchStart={(e) => {
-                            e.stopPropagation();
-                            setShowControls(true);
-                            if (controlsTimeoutRef.current) {
-                              clearTimeout(controlsTimeoutRef.current);
-                            }
-                            controlsTimeoutRef.current = setTimeout(() => {
-                              if (isPlaying) {
-                                setShowControls(false);
-                              }
-                            }, 4000);
-                          }}
-                        >
-                          {/* Progress Bar with Time Display */}
-                          <div className="flex items-center gap-2 mb-3">
-                            <input
-                              type="range"
-                              min="0"
-                              max={duration || 100}
-                              value={currentTime || 0}
-                              onChange={(e) => {
-                                if (videoRef.current) {
-                                  const newTime = parseFloat(e.target.value);
-                                  videoRef.current.currentTime = newTime;
-                                  setCurrentTime(newTime);
-                                }
-                              }}
-                              onTouchStart={(e) => {
-                                e.stopPropagation();
-                                setShowControls(true);
-                              }}
-                              className="flex-1 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-red-600 touch-manipulation"
-                              style={{
-                                background: `linear-gradient(to right, #dc2626 0%, #dc2626 ${duration ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.2) ${duration ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.2) 100%)`,
-                                WebkitTapHighlightColor: 'transparent'
-                              }}
-                            />
-                            {/* Time Display */}
-                            <span className={`text-white ${isMobile ? 'text-xs' : 'text-sm'} font-medium ${isMobile ? 'min-w-[80px]' : 'min-w-[100px]'} text-right flex-shrink-0`}>
-                              {formatTime(currentTime)} / {formatTime(duration)}
-                            </span>
-                          </div>
-                          
-                          {/* Control Buttons */}
-                          <div className="flex items-center justify-between w-full">
-                            <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'} flex-shrink-0`}>
-                              {/* Play/Pause */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  togglePlayPause();
-                                }}
-                                onTouchStart={(e) => {
-                                  e.stopPropagation();
-                                  setShowControls(true);
-                                }}
-                                className="text-white hover:text-red-400 active:text-red-500 transition-colors p-2 touch-manipulation"
-                                title={isPlaying ? "Pause" : "Play"}
-                                style={{ WebkitTapHighlightColor: 'transparent' }}
-                              >
-                                {isPlaying ? <BiPause size={isMobile ? 22 : 24} /> : <BiPlay size={isMobile ? 22 : 24} />}
-                              </button>
-
-                              {/* Skip Backward 10s */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  skipBackward();
-                                }}
-                                onTouchStart={(e) => {
-                                  e.stopPropagation();
-                                  setShowControls(true);
-                                }}
-                                className="text-white hover:text-red-400 active:text-red-500 transition-colors p-2 touch-manipulation"
-                                title="Rewind 10 seconds"
-                                style={{ WebkitTapHighlightColor: 'transparent' }}
-                              >
-                                <BiSkipPrevious size={isMobile ? 22 : 24} />
-                              </button>
-
-                              {/* Skip Forward 10s */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  skipForward();
-                                }}
-                                onTouchStart={(e) => {
-                                  e.stopPropagation();
-                                  setShowControls(true);
-                                }}
-                                className="text-white hover:text-red-400 active:text-red-500 transition-colors p-2 touch-manipulation"
-                                title="Forward 10 seconds"
-                                style={{ WebkitTapHighlightColor: 'transparent' }}
-                              >
-                                <BiSkipNext size={isMobile ? 22 : 24} />
-                              </button>
-
-                              {/* Volume Control */}
-                              <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-2'}`}>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleMute();
-                                  }}
-                                  onTouchStart={(e) => {
-                                    e.stopPropagation();
-                                    setShowControls(true);
-                                  }}
-                                  className="text-white hover:text-red-400 active:text-red-500 transition-colors p-2 touch-manipulation"
-                                  title={isMuted ? "Unmute" : "Mute"}
-                                  style={{ WebkitTapHighlightColor: 'transparent' }}
-                                >
-                                  {isMuted ? <BiVolumeMute size={isMobile ? 18 : 20} /> : <BiVolumeFull size={isMobile ? 18 : 20} />}
-                                </button>
-                                {!isMobile && (
-                                  <input
-                                    type="range"
-                                    min="0"
-                                    max="1"
-                                    step="0.01"
-                                    value={isMuted ? 0 : volume}
-                                    onChange={(e) => {
-                                      e.stopPropagation();
-                                      handleVolumeChange(e);
-                                    }}
-                                    onTouchStart={(e) => {
-                                      e.stopPropagation();
-                                      setShowControls(true);
-                                    }}
-                                    onMouseDown={(e) => e.stopPropagation()}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="w-20 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-red-600 touch-manipulation"
-                                    style={{
-                                      background: `linear-gradient(to right, #dc2626 0%, #dc2626 ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.2) ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.2) 100%)`,
-                                      WebkitTapHighlightColor: 'transparent'
-                                    }}
-                                  />
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              {/* Fullscreen - Always visible on mobile */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleFullscreen();
-                                }}
-                                onTouchStart={(e) => {
-                                  e.stopPropagation();
-                                  setShowControls(true);
-                                }}
-                                className="text-white hover:text-red-400 active:text-red-500 transition-colors p-2 touch-manipulation"
-                                title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-                                style={{ 
-                                  WebkitTapHighlightColor: 'transparent',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  minWidth: isMobile ? '44px' : 'auto',
-                                  minHeight: isMobile ? '44px' : 'auto'
-                                }}
-                              >
-                                {isFullscreen ? <BiExitFullscreen size={isMobile ? 22 : 20} /> : <BiFullscreen size={isMobile ? 22 : 20} />}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {isLoadingPlayback && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-                            <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-                          </div>
-                        )}
-                        
-                        {/* Close Button (X) - Always visible when playing */}
-                        {isPlayingMovie && videoUrl && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              stopPlaying();
-                            }}
-                            onTouchStart={(e) => {
-                              e.stopPropagation();
-                              stopPlaying();
-                            }}
-                            className="absolute top-3 right-3 z-30 p-2 rounded-full bg-black/70 backdrop-blur-md border border-white/30 hover:border-red-500/50 active:border-red-500 text-white transition-all duration-300 hover:scale-110 active:scale-105 hover:bg-black/80 shadow-lg touch-manipulation"
-                            title="Close player"
-                            style={{ WebkitTapHighlightColor: 'transparent' }}
-                          >
-                            <AiOutlineClose className="text-white text-lg sm:text-xl" />
-                          </button>
-                        )}
-                      </div>
-                      
-                      {/* Play Button Overlay - Show when not playing */}
-                      {(!isPlayingMovie || !videoUrl) && (
-                        <div
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            handlePlayClick();
-                          }}
-                          onTouchStart={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            // On mobile, ensure immediate response - call immediately
-                            if (isMobile) {
-                              handlePlayClick();
-                            }
-                          }}
-                          onTouchEnd={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            // Also handle on touch end for better mobile support
-                            if (isMobile && !isPlayingMovie) {
-                              handlePlayClick();
-                            }
-                          }}
-                          className="absolute inset-0 cursor-pointer transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-xl hover:shadow-white/20 group bg-gradient-to-br from-gray-700/20 to-gray-900/40 touch-manipulation overflow-hidden rounded-2xl z-40"
-                          style={{ 
-                            WebkitTapHighlightColor: 'transparent',
-                            width: '100%',
-                            height: '100%',
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            zIndex: 40,
-                            pointerEvents: 'auto',
-                            cursor: 'pointer'
-                          }}
-            >
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
-
-                          <div className="absolute z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+              <div className="absolute z-20 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
                 <div className="relative">
                   <div className="absolute inset-0 bg-white/20 rounded-full animate-pulse"></div>
                   <div className="absolute inset-0 bg-white/15 rounded-full animate-ping"></div>
-                              <div
-                                className={`relative bg-white/10 hover:bg-white/20 backdrop-blur-lg text-white rounded-full p-3 sm:p-4 text-2xl sm:text-3xl lg:text-4xl transition-all duration-300 hover:scale-105 shadow-lg shadow-black/20 hover:shadow-xl hover:shadow-black/30 border border-white/20 hover:border-white/30 ${isLoadingPlayback ? 'opacity-50' : 'opacity-100'}`}
-                                style={{
-                                  pointerEvents: 'auto',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center'
-                                }}
+                  <button
+                    disabled={isLoadingPlayback}
+                    className={`relative bg-white/10 hover:bg-white/20 backdrop-blur-lg text-white rounded-full p-3 sm:p-4 text-2xl sm:text-3xl lg:text-4xl transition-all duration-300 hover:scale-105 shadow-lg shadow-black/20 hover:shadow-xl hover:shadow-black/30 border border-white/20 hover:border-white/30 ${isLoadingPlayback ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <BiPlay className="ml-0.5" />
+                  </button>
                 </div>
               </div>
-                          </div>
-                        </div>
-                      )}
+
+              <LazyLoadImage
+                src={props.movieData.backdrop}
+                effect="black-and-white"
+                alt={props.movieData.title}
+                className="aspect-video w-full rounded-2xl shrink-0 object-cover"
+              />
             </div>
 
-            <div className={`space-y-4 sm:p-2 ${isMobile && isPlayingMovie ? 'hidden' : ''}`}>
+            <div className="space-y-4 sm:p-2">
               {props.movieData.genres && (
                 <div className="flex gap-2 flex-wrap">
                   {props.movieData.genres.map((genre, index) => (
@@ -2592,18 +715,20 @@ export default function MoviesAndSeriesDetailsSections(props) {
                   </div>
                 )}
 
-                {/* Trailer Button - Inline with rating */}
+                {/* Trailer Play Button */}
                 <button
-                  onClick={handleTrailerClick}
-                  className="group flex items-center justify-center gap-1.5 bg-transparent border-2 border-red-600 text-white font-medium text-xs rounded-lg py-1.5 px-3 hover:bg-red-600/10 hover:border-red-500 transition-all duration-300 hover:scale-105"
+                  onClick={() => setIsTrailerModalOpen(true)}
+                  className="flex items-center gap-2 p-2 rounded-lg bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 hover:border-red-500/50 transition-all duration-300 hover:scale-105"
+                  title="Watch Trailer"
                 >
-                  <BiFilm className="text-red-600 text-base group-hover:scale-110 transition-transform duration-300" />
-                  <span>Trailer</span>
+                  <BiPlayCircle className="text-red-500 text-xl" />
+                  <span className="text-white text-sm xl:text-base font-medium">
+                    Trailer
+                  </span>
                 </button>
               </div>
 
-              {/* Action Buttons Section - All on same line */}
-              <div className="flex items-center flex-wrap gap-3 mt-4">
+              <div className="flex items-center flex-wrap gap-3">
                 <TelegramButton movieData={props.movieData} />
                 <DownloadButton movieData={props.movieData} />
                 <VLCStreamButton movieData={props.movieData} />
@@ -2728,10 +853,9 @@ export default function MoviesAndSeriesDetailsSections(props) {
       <TrailerModal
         isOpen={isTrailerModalOpen}
         onClose={() => setIsTrailerModalOpen(false)}
-        movieTitle={props.movieData?.title}
-        releaseYear={props.movieData?.release_year}
+        movieTitle={props.movieData.title}
+        releaseYear={props.movieData.release_year}
       />
-
     </div>
   );
 }
